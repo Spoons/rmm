@@ -52,16 +52,17 @@ mods=(
 # "708455313"  #blueprints
 # "712141500"  #animal tab
 # "715565262"  #colony manager
-  "725130005"  #p music
-  "725153576"  #area unlocker
-  "730936602"  #achtung
-  "731111514"  #mad skills
-  "754637870"  #quality builder
-  "761315214"  #map reroll
-  "761421485"  #allow tool
-  "818773962"  #hugs lib
-  "867467808"  #camera plus
-  "927155256"  #side arms
+# "725130005"  #p music
+# "725153576"  #area unlocker
+# "730936602"  #achtung
+# "731111514"  #mad skills
+# "754637870"  #quality builder
+# "761315214"  #map reroll
+# "761421485"  #allow tool
+# "818773962"  #hugs lib
+# "867467808"  #camera plus
+# "927155256"  #side arms
+1424338139
 )
 
 string=""
