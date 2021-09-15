@@ -48,3 +48,5 @@ cover/
 # Environments
 .env
 .venv
+
+*~
