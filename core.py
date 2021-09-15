@@ -1,13 +1,11 @@
 import os
 import sys
-import subprocess
-import shlex
 import xml.etree.ElementTree as ET
 import requests as req
 import shutil
 import argparse
-from utils.processes import cmd_run, execute, cmd_output
 from bs4 import BeautifulSoup
+from utils.processes import execute
 
 
 class Mod:
@@ -85,8 +83,9 @@ class SteamDownloader:
             return (s := ' +workshop_download_item 294100 ') + s.join(str(x) for x in mods)
         query = "steamcmd +login anonymous +force_install_dir \"{}\" \"{}\" +quit"\
           .format(folder, workshop_format(mods))
+        print(query)
 
-        for line in execute(shlex.split(query)):
+        for line in execute(query):
            print(line, end='') 
 
     @classmethod
@@ -100,6 +99,22 @@ class WorkshopWebScraper:
         resp = req.get("https://steamcommunity.com/sharedfiles/filedetails/?id={}".format(mod.steamid))
         soup = BeautifulSoup(resp.content, 'html.parser')
         return list(soup.find_all('div', class_='detailsStatRight'))[2].get_text()
+
+    @classmethod
+    def workshop_search(cls, name):
+        name = name.replace(' ', '+')
+        resp = req.get("https://steamcommunity.com/workshop/browse/?appid=294100&searchtext={}".format(name))
+        soup = BeautifulSoup(resp.content, 'html.parser')
+        items = soup.find_all('div', class_='workshopItem')
+        results = []
+        import re
+        for n in items:
+            item_title = n.find('div', class_='workshopItemTitle').get_text()
+            author_name = n.find('div', class_='workshopItemAuthorName').get_text()
+            steamid = int(re.search(r'\d+', n.find('a', class_='ugc')['href']).group())
+            results.append((item_title, author_name, steamid))
+
+        return results
 
 class Manager:
     def __init__(self, moddir):
@@ -121,13 +136,10 @@ class Manager:
         for line in execute(query):
             print(line, end='')
 
+    def sync_mod(self, steamid):
+        SteamDownloader().download([steamid], self.moddir)
+        
     def remove_mod(self, mod):
-        pass
-
-    def query_mod(self):
-        pass
-
-    def update_mod(self, mod):
         pass
 
     def update_all_mods(self, fp):
@@ -146,10 +158,11 @@ class CLI:
 The available commands are:
     list        List installed packages 
     update      Update all packages
-    install     Installs a package or modlist 
+    sync        Installs a package or modlist 
     remove      Removes a package or modlist 
     backup      Creates an archive of the package library
     export      Saves package library state to a file
+    search      Searches the workshop for mod
     
 ''')
         parser.add_argument('command', help='Subcommand to run')
@@ -162,6 +175,14 @@ The available commands are:
             exit(1)
         # use dispatch pattern to invoke method with same name
         getattr(self, args.command)()
+
+    def search(self):
+        parser = argparse.ArgumentParser(description="searches the workshop for specified modname")
+        parser.add_argument("modname", help="name of mod")
+        args = parser.parse_args(sys.argv[2:])
+        results = WorkshopWebScraper.workshop_search(args.modname)
+        from tabulate import tabulate
+        print(tabulate(results))
 
     def export(self):
         parser = argparse.ArgumentParser(description="Saves modlist to file.")
@@ -178,8 +199,25 @@ The available commands are:
     def list(self):
         print(Manager(self.path).get_mod_table())
 
-    def install(self, name):
-        SteamDownloader().download_modlist(mods, "/tmp")
+    def sync(self):
+        parser = argparse.ArgumentParser(description="Syncs a mod from the workshop")
+        parser.add_argument("modname")
+        args = parser.parse_args(sys.argv[2:])
+        results = WorkshopWebScraper.workshop_search(args.modname)
+        for n, element in enumerate(reversed(results)):
+            n = abs(n - len(results))
+            print("{}. {} {}".format(n,element[0],element[1]))
+        print("Packages to install (eg: 1 2 3, 1-3 or ^4)")
+
+        # TODO: Ensure selection and range are valid
+        selection = int(input()) - 1
+
+        print("Package(s): {} will be installed. Continue? [y/n]".format(results[selection][0]))
+
+        if (input() != "y"):
+            return 0
+
+        Manager("/tmp/rimworld").sync_mod(results[selection][2])
 
     def update(self):
         parser = argparse.ArgumentParser(description="Updates all mods in directory")
