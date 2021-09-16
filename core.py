@@ -5,9 +5,13 @@ import xml.etree.ElementTree as ET
 import requests as req
 import shutil
 import argparse
+from enum import Enum
 from bs4 import BeautifulSoup
 from utils.processes import execute
 
+
+class InvalidSelectionException(Exception):
+    pass
 
 class Mod:
     def __init__(self, name, steamid, versions, author, fp):
@@ -57,7 +61,6 @@ class ModList:
                     mods.append(int(itemid))
                 except ValueError:
                     continue
-
         return mods
 
     @classmethod
@@ -65,7 +68,6 @@ class ModList:
         output = ""
         for m in mods:
             output += "{}\n".format(m.steamid)
-
         return output
 
     @classmethod
@@ -73,13 +75,6 @@ class ModList:
         with open(path, "w") as f:
             f.write(cls.export_text_modlist(mods))
               
-
-    def install_all():
-        pass
-
-    def remove_all():
-        pass
-
 
 class SteamDownloader:
     @classmethod
@@ -96,6 +91,11 @@ class SteamDownloader:
     def download_modlist(cls, mods, path):
         steamids = [n.steamid for n in mods]
         return cls.download(steamids, path)
+
+class WorkshopResultsEnum(Enum):
+    TITLE=0
+    AUTHOR=1
+    STEAMID=2
 
 class WorkshopWebScraper:
     @classmethod
@@ -134,11 +134,7 @@ class Manager:
     
     def get_mods_names(self):
         mods = self.get_mods_list()
-        table = []
-        for n in mods:
-            table.append(n.name)
-
-        return table
+        return [ n.name for n in mods ]
 
     def backup_mod_dir(self, tarball_fp):
         query = "(cd {}; tar -vcaf \"{}\" \".\")".format(self.moddir, tarball_fp)
@@ -150,9 +146,6 @@ class Manager:
         mod = Mod.create_from_path(self.cache_content_dir + str(steamid))
         mod.install(self.moddir)
         print("\nInstalled {}".format(mod.name))
-
-    def remove_mod(self, mod):
-        pass
 
     def sync_mod_list(self, modlist_fp):
         mods = ModList.read_text_modlist(modlist_fp)
@@ -206,7 +199,6 @@ The available commands are:
             print("Mod directory not found. Creating new directory '{}'.".format(self.path))
             os.mkdir(self.path)
 
-
         if not hasattr(self, args.command):
             print('Unrecognized command')
             parser.print_help()
@@ -253,18 +245,28 @@ The available commands are:
             results = WorkshopWebScraper.workshop_search(args.modname)
             for n, element in enumerate(reversed(results)):
                 n = abs(n - len(results))
-                print("{}. {} {}".format(n,element[0],element[1]))
+                print("{}. {} {}".format(n,element[WorkshopResultsEnum.TITLE.value],element[WorkshopResultsEnum.AUTHOR.value]))
             print("Packages to install (eg: 1 2 3, 1-3 or ^4)")
 
-            # TODO: Ensure selection and range are valid
-            selection = int(input()) - 1
 
-            print("Package(s): {} will be installed. Continue? [y/n] ".format(results[selection][0]), end='')
+            while(True):
+                try:
+                    selection = int(input()) - 1
+                    if (selection >= len(results) or selection < 0):
+                        raise InvalidSelectionException('Out of bounds')
+                    break
+                except ValueError:
+                    print("Must enter valid integer")
+                except InvalidSelectionException:
+                    print('Selection out of bounds.')
+
+
+            print("Package(s): {} will be installed. Continue? [y/n] ".format(results[selection][WorkshopResultsEnum.TITLE.value]), end='')
 
             if (input() != "y"):
-                return 0
+                return False
 
-            Manager(self.path).sync_mod(results[selection][2])
+            Manager(self.path).sync_mod(results[selection][WorkshopResultsEnum.STEAMID.value])
            
 
     def update(self):
@@ -277,7 +279,7 @@ The available commands are:
               "\n\nWould you like to continue? [y/n]")
         
         if (input() != "y"):
-            return 0
+            return False
 
         Manager(self.path).update_all_mods(args.filename)
         print("Package update complete.")
