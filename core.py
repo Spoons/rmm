@@ -191,9 +191,10 @@ The available commands are:
         args = parser.parse_args(sys.argv[1:2])
 
         try:
-            self.path = os.environ['RMM_PATH']
+            self.path = os.environ['RMM_MOD']
         except KeyError as err:
-            self.path = "/tmp/rimworld"
+            print("Rimworld mod directory not set.\nPlease set \"RMM_MOD\" variable to the Rimworld mod directory in your shell config.\nexport RMM_MOD=\"~/games/rimworld/game/Mods\"")
+            exit(1)
 
         if (not os.path.isdir(self.path)):
             print("Mod directory not found. Creating new directory '{}'.".format(self.path))
@@ -202,7 +203,7 @@ The available commands are:
         if not hasattr(self, args.command):
             print('Unrecognized command')
             parser.print_help()
-            exit(1)
+            exit(2)
         # use dispatch pattern to invoke method with same name
         getattr(self, args.command)()
 
@@ -293,6 +294,5 @@ The available commands are:
         Manager(self.path).backup_mod_dir(args.filename)
         print("Backup completed to " + args.filename + ".")
 
-
-CLI()
-# CLI(path="/home/miffi/apps/rimworld/game/Mods")
+if __name__ == '__main__':
+    CLI()
