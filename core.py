@@ -216,10 +216,12 @@ The available commands are:
         args = parser.parse_args(sys.argv[1:2])
 
         try:
-            self.path = os.environ["RMM_MOD"]
+            self.path = os.environ["RMM_PATH"]
         except KeyError as err:
             print(
-                'Rimworld mod directory not set.\nPlease set "RMM_MOD" variable to the Rimworld mod directory in your shell config.\nexport RMM_MOD="~/games/rimworld/game/Mods"'
+                'Rimworld mod directory not set.\n'
+                'Please set "RMM_PATH" variable to the RimWorld mod directory in your shell config.\n'
+                'export RMM_PATH="~/games/rimworld/game/Mods"'
             )
             exit(1)
 
