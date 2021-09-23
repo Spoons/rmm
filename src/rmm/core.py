@@ -7,7 +7,7 @@ import shutil
 import argparse
 from enum import Enum
 from bs4 import BeautifulSoup
-from utils.processes import execute
+from rmm.utils.processes import execute
 
 
 class InvalidSelectionException(Exception):
@@ -197,6 +197,7 @@ class Manager:
 class CLI:
     def __init__(self):
         parser = argparse.ArgumentParser(
+            prog="rmm",
             description="Rimworld Mod Manager (RMM)",
             usage="""rmm <command> [<args>]
 The available commands are:
@@ -219,9 +220,10 @@ The available commands are:
             self.path = os.environ["RMM_PATH"]
         except KeyError as err:
             print(
-                'Rimworld mod directory not set.\n'
-                'Please set "RMM_PATH" variable to the RimWorld mod directory in your shell config.\n'
-                'export RMM_PATH="~/games/rimworld/game/Mods"'
+                "Rimworld mod directory not set.\n"
+                'Please set "RMM_PATH" variable to the RimWorld mod directory in your environment.\n'
+                '\nexport RMM_PATH="~/games/rimworld/game/Mods"\nrmm list\n or \n'
+                'RMM_PATH="~/games/rimworld/game/Mods" rmm list'
             )
             exit(1)
 
@@ -242,7 +244,7 @@ The available commands are:
 
     def search(self):
         parser = argparse.ArgumentParser(
-            description="searches the workshop for specified modname"
+            prog="rmm", description="searches the workshop for specified modname"
         )
         parser.add_argument("modname", help="name of mod")
         args = parser.parse_args(sys.argv[2:])
@@ -254,7 +256,7 @@ The available commands are:
     def export(self):
         parser = argparse.ArgumentParser(description="Saves modlist to file.")
         parser.add_argument(
-            "filename", help="filename to write modlist to or specify '-' for stdout"
+            prog="rmm", help="filename to write modlist to or specify '-' for stdout"
         )
         args = parser.parse_args(sys.argv[2:])
         mods = Manager(self.path).get_mods_list()
@@ -270,7 +272,9 @@ The available commands are:
         print(s)
 
     def sync(self):
-        parser = argparse.ArgumentParser(description="Syncs a mod from the workshop")
+        parser = argparse.ArgumentParser(
+            prog="rmm", description="Syncs a mod from the workshop"
+        )
         parser.add_argument("modname", help="mod or modlist to sync")
         parser.add_argument(
             "-f",
@@ -322,7 +326,9 @@ The available commands are:
             )
 
     def update(self):
-        parser = argparse.ArgumentParser(description="Updates all mods in directory")
+        parser = argparse.ArgumentParser(
+            prog="rmm", description="Updates all mods in directory"
+        )
         parser.add_argument("filename", nargs="?", const=1, default=self.path)
         args = parser.parse_args(sys.argv[2:])
 
@@ -340,7 +346,7 @@ The available commands are:
 
     def backup(self):
         parser = argparse.ArgumentParser(
-            description="Creates a backup of the mod directory state."
+            prog="rmm", description="Creates a backup of the mod directory state."
         )
         parser.add_argument(
             "filename", nargs="?", const=1, default="/tmp/rimworld.tar.bz2"
