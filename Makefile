@@ -1,4 +1,6 @@
-.PHONY: req
+.PHONY: install
 
-req:
-	pip install --user -r requirements.txt
+install:
+	test -d .venv || python3 -m venv .venv; \
+	source .venv/bin/activate; \
+	python3 -m pip install -e .

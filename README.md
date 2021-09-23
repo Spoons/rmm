@@ -4,48 +4,82 @@ RMM is an open source RimWorld mod manager designed for Unix systems. RMM uses t
 
 
 
-## Getting Started
+## Installation
 
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. Improvements in this process will follow. 
 
 ### Prerequisites
-
 To use RMM you need:
-1. steamcmd in your PATH
-2. requests and bs4 python library
-3. set RMM_PATH to your RimWorld mod directory.
 
----
+- SteamCMD installed and in your path.
+- set RMM_PATH to your RimWorld mod directory.
 
-1. For Arch Linux, you can install steamcmd as stated below:
-```
+#### Install SteamCMD
+
+1. A. For Arch Linux, you can install steamcmd using makepkg as stated below:
+``` sh
 mkdir -p ~/build ; cd ~/build
 git clone https://aur.archlinux.org/steamcmd.git
 cd steamcmd
 makepkg -si
 ```
 
-2. Install python libraries in pip user directory:
-```
-pip install --user -r requirements.txt
+1. B. Alternatively, you can install it using a 'AUR Helper' such as yay.
+
+``` sh
+yay -S steamcmd
 ```
 
-3. Append following to your .zshrc or .bashrc config. Replace 'PATHTOGAME' with the path that leads to your 'rimworld' directory.
+2. Verify steamcmd is correctly installed:
+
+``` sh
+whereis steamcmd
 ```
+
+Should return a path such as below. Otherwise check to make sure steamcmd is in your path.
+``` sh
+steamcmd: /usr/bin/steamcmd /usr/share/steamcmd
+```
+
+#### Set RMM_PATH (Optional)
+
+RMM will first search for the default GOG games installation directory, steamcache folder, before falling back to an error message if this value is not set. This value takes precedence over those defaults. I recommend setting this variable.
+
+1. A. Set RMM_PATH variable to the 'Mods' sub directory in your Rimworld game folder in your .bashrc or .zshrc. For example:
+
+``` sh
+# Note please update this path to your actual game mods folder directory
+echo 'export RMM_PATH="$HOME/apps/rimworld/game/Mods"
+```
+
+1. B. Alternatively, you can change this path at runtime. This is useful when managing multiple copies of the games.
+
+``` sh
 export RMM_PATH="~/PATHTOGAME/game/Mods"
+rmm list
+# or you can use
+RMM_PATH="~/PATHTOGAME/game/Mods" rmm list
 ```
 
-### Installing
+#### Installation
 
-Clone repository and link core.py into your PATH.
+1. Install from pypi
+
+``` sh
+python3 -m pip install --local rmm
+```
+
+
+### Installation for Development
+
+Clone repository and install with setuptools editable mode.
 ```
 mkdir -p ~/build
 git clone https://github.com/Spoons/rmm.git ~/build/rmm
-cd ~/build/rmm
-sudo ln -s $(HOME)/build/rmm/core.py /usr/local/bin/rmm
+pip install --local -e ~/build/rmm
 ```
 
-### Useage
+## Useage
 
 List installed packages:
 ``` 
@@ -62,9 +96,14 @@ Install package:
 rmm sync rimhud
 ```
 
+Saving a mod list
+```
+rmm export ~/modlist.txt
+```
+
 Install mod list:
 ```
-rmm sync -f ~/pathtomodlist
+rmm sync -f ~/modlist.txt
 ```
 
 Update all packages:
@@ -77,9 +116,11 @@ Backup mod directory:
 rmm backup ~/rimworld.tar
 ```
 
-Export mod list:
-```
-rmm export ~/modlist
+### Tips
+Duplicating a mod setup to a new installation:
+``` sh
+RMM_PATH=~/path/to/oldgame/game/Mods rmm export ~/modlist.txt
+RMM_PATH=~/path/to/newgame/game/Mods rmm sync -f ~/modlist.txt
 ```
 
 ## License
