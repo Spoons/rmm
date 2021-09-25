@@ -2,4 +2,4 @@
 
 from rmm.core import CLI
 
-CLI()
+t = CLI()
