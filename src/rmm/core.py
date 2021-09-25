@@ -42,15 +42,18 @@ class Mod:
 
     @classmethod
     def create_from_path(cls, filepath):
-        tree = ET.parse(filepath + "/About/About.xml")
-        root = tree.getroot()
-        name = root.find("name").text
-        author = root.find("author").text
-        versions = [v.text for v in root.find("supportedVersions").findall("li")]
-        with open(filepath + "/About/PublishedFileId.txt") as f:
-            steamid = f.readline().strip()
+        try:
+            tree = ET.parse(filepath + "/About/About.xml")
+            root = tree.getroot()
+            name = root.find("name").text
+            author = root.find("author").text
+            versions = [v.text for v in root.find("supportedVersions").findall("li")]
+            with open(filepath + "/About/PublishedFileId.txt") as f:
+                steamid = f.readline().strip()
 
-        return Mod(name, steamid, versions, author, filepath)
+            return Mod(name, steamid, versions, author, filepath)
+        except NotADirectoryError:
+            print(os.path.basename(filepath) + " is not a mod. Skipping.")
 
 
 class ModList:
@@ -145,9 +148,7 @@ class Manager:
         self.cache_content_dir = self.cachedir + "/steamapps/workshop/content/294100/"
 
     def get_mods_list(self):
-        return [
-            Mod.create_from_path(self.moddir + "/" + d) for d in os.listdir(self.moddir)
-        ]
+        return filter(None, [Mod.create_from_path(self.moddir + "/" + d) for d in os.listdir(self.moddir)])
 
     def modlist_from_list_cache(self, mods):
         return [
@@ -165,7 +166,9 @@ class Manager:
 
     def sync_mod(self, steamid):
         SteamDownloader().download([steamid], self.cachedir)
+        print("\n\nsteamid: "+str(steamid)+"\n\n")
         mod = Mod.create_from_path(self.cache_content_dir + str(steamid))
+        print(mod)
         mod.install(self.moddir)
         print("\nInstalled {}".format(mod.name))
 
@@ -227,13 +230,24 @@ The available commands are:
             )
             exit(1)
 
-        if not os.path.isdir(self.path):
-            print(
-                "Mod directory not found. Creating new directory '{}'.".format(
-                    self.path
-                )
-            )
-            os.mkdir(self.path)
+        if not os.path.basename(self.path) == "Mods":
+            print("This directory is not the \'Mods\' directory. Scanning...")
+            for root, dirs, files in os.walk(self.path):
+                if os.path.basename(root) == "game" and "Mods" in dirs:
+                    #TODO read gameinfo file to ensure is actually rimworld
+                    self.path = root+"/"+"Mods"
+                    break
+
+            print("Trying: {}\n".format(self.path))
+
+
+        # if not os.path.isdir(self.path):
+        #     print(
+        #         "Mod directory not found. Creating new directory '{}'.".format(
+        #             self.path
+        #         )
+        #     )
+        #     os.mkdir(self.path)
 
         if not hasattr(self, args.command):
             print("Unrecognized command")
@@ -254,9 +268,9 @@ The available commands are:
         print(tabulate(reversed(results)))
 
     def export(self):
-        parser = argparse.ArgumentParser(description="Saves modlist to file.")
+        parser = argparse.ArgumentParser(prog="rmm", description="Saves modlist to file.")
         parser.add_argument(
-            prog="rmm", help="filename to write modlist to or specify '-' for stdout"
+            "filename", help="filename to write modlist to or specify '-' for stdout"
         )
         args = parser.parse_args(sys.argv[2:])
         mods = Manager(self.path).get_mods_list()
@@ -357,6 +371,8 @@ The available commands are:
         Manager(self.path).backup_mod_dir(args.filename)
         print("Backup completed to " + args.filename + ".")
 
+def run():
+    t = CLI()
 
 if __name__ == "__main__":
-    CLI()
+    run()

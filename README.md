@@ -2,8 +2,6 @@
 
 RMM is an open source RimWorld mod manager designed for Unix systems. RMM uses the SteamCMD binary to download mods. 
 
-
-
 ## Installation
 
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. Improvements in this process will follow. 
@@ -25,13 +23,11 @@ makepkg -si
 ```
 
 1. B. Alternatively, you can install it using a 'AUR Helper' such as yay.
-
 ``` sh
 yay -S steamcmd
 ```
 
 2. Verify steamcmd is correctly installed:
-
 ``` sh
 whereis steamcmd
 ```
