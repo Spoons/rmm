@@ -218,13 +218,14 @@ class CLI:
             description="Rimworld Mod Manager (RMM)",
             usage="""rmm <command> [<args>]
 The available commands are:
-    list        List installed packages 
-    update      Update all packages
-    sync        Installs a package or modlist 
-    remove      Removes a package or modlist 
     backup      Creates an archive of the package library
     export      Saves package library state to a file
+    list        List installed packages
+    remove      Removes a package or modlist
     search      Searches the workshop for mod
+    sync        Installs a package or modlist
+    update      Update all packages
+    query       Search for a locally installed mod
     
 """,
         )
@@ -436,6 +437,29 @@ The available commands are:
             return False
 
         Manager(self.path).remove_mod_list(remove_queue)
+
+    def query(self):
+        parser = argparse.ArgumentParser(prog="rmm", description="query locally installed mods")
+        parser.add_argument("modname", help="name of mod")
+        args = parser.parse_args(sys.argv[2:])
+
+        search_result = [
+            r
+            for r in Manager(self.path).get_mods_list()
+            if str.lower(args.modname) in str.lower(r.name)
+            or str.lower(args.modname) in str.lower(r.author)
+            or args.modname in r.steamid
+        ]
+        print("Found: ")
+        for n, element in enumerate(reversed(search_result)):
+            n = abs(n - len(search_result))
+            print(
+                "{}. {} by {}".format(
+                    n,
+                    element.name,
+                    element.author,
+                )
+            )
 
 
 def run():
