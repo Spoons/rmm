@@ -147,8 +147,16 @@ class Manager:
         self.cachedir = "/tmp/rmm_cache"
         self.cache_content_dir = self.cachedir + "/steamapps/workshop/content/294100/"
 
-    def get_mods_list(self):
-        return filter(None, [Mod.create_from_path(self.moddir + "/" + d) for d in os.listdir(self.moddir)])
+    def get_mods_list(self) -> list[Mod]:
+        return list(
+            filter(
+                None,
+                [
+                    Mod.create_from_path(self.moddir + "/" + d)
+                    for d in os.listdir(self.moddir)
+                ],
+            )
+        )
 
     def modlist_from_list_cache(self, mods):
         return [
@@ -166,7 +174,7 @@ class Manager:
 
     def sync_mod(self, steamid):
         SteamDownloader().download([steamid], self.cachedir)
-        print("\n\nsteamid: "+str(steamid)+"\n\n")
+        print("\n\nsteamid: " + str(steamid) + "\n\n")
         mod = Mod.create_from_path(self.cache_content_dir + str(steamid))
         print(mod)
         mod.install(self.moddir)
@@ -190,6 +198,12 @@ class Manager:
             print("Updating {}".format(n.name))
             n.update_parent_dir(self.cache_content_dir)
             n.install(self.moddir)
+
+    def remove_mod_list(self, modlist: list[Mod]) -> bool:
+        for m in modlist:
+            print("Removing {} by {}...".format(m.name, m.author))
+            m.remove()
+        return True
 
     def get_mod_table(self):
         from tabulate import tabulate
@@ -231,23 +245,14 @@ The available commands are:
             exit(1)
 
         if not os.path.basename(self.path) == "Mods":
-            print("This directory is not the \'Mods\' directory. Scanning...")
+            print("This directory is not the 'Mods' directory. Scanning...")
             for root, dirs, files in os.walk(self.path):
                 if os.path.basename(root) == "game" and "Mods" in dirs:
-                    #TODO read gameinfo file to ensure is actually rimworld
-                    self.path = root+"/"+"Mods"
+                    # TODO read gameinfo file to ensure is actually rimworld
+                    self.path = root + "/" + "Mods"
                     break
 
-            print("Trying: {}\n".format(self.path))
-
-
-        # if not os.path.isdir(self.path):
-        #     print(
-        #         "Mod directory not found. Creating new directory '{}'.".format(
-        #             self.path
-        #         )
-        #     )
-        #     os.mkdir(self.path)
+            print("Found: {}\n".format(self.path))
 
         if not hasattr(self, args.command):
             print("Unrecognized command")
@@ -268,7 +273,9 @@ The available commands are:
         print(tabulate(reversed(results)))
 
     def export(self):
-        parser = argparse.ArgumentParser(prog="rmm", description="Saves modlist to file.")
+        parser = argparse.ArgumentParser(
+            prog="rmm", description="Saves modlist to file."
+        )
         parser.add_argument(
             "filename", help="filename to write modlist to or specify '-' for stdout"
         )
@@ -371,8 +378,69 @@ The available commands are:
         Manager(self.path).backup_mod_dir(args.filename)
         print("Backup completed to " + args.filename + ".")
 
+    def remove(self):
+        parser = argparse.ArgumentParser(prog="rmm", description="remove a mod")
+        parser.add_argument("modname", help="name of mod")
+        args = parser.parse_args(sys.argv[2:])
+
+        search_result = [
+            r
+            for r in Manager(self.path).get_mods_list()
+            if str.lower(args.modname) in str.lower(r.name)
+            or str.lower(args.modname) in str.lower(r.author)
+            or args.modname in r.steamid
+        ]
+        for n, element in enumerate(reversed(search_result)):
+            n = abs(n - len(search_result))
+            print(
+                "{}. {} by {}".format(
+                    n,
+                    element.name,
+                    element.author,
+                )
+            )
+        print("Packages to remove (eg: 1 2 3, 1-3 or ^4)")
+
+        def expand_ranges(s):
+            import re
+
+            return re.sub(
+                r"(\d+)-(\d+)",
+                lambda match: " ".join(
+                    str(i) for i in range(int(match.group(1)), int(match.group(2)) + 1)
+                ),
+                s,
+            )
+
+        while True:
+            try:
+                selection = input()
+                selection = [int(s) for s in expand_ranges(selection).split(" ")]
+                for n in selection:
+                    if n > len(search_result) or n <= 0:
+                        raise InvalidSelectionException("Out of bounds")
+                break
+            except ValueError:
+                print("Must enter valid integer or range")
+            except InvalidSelectionException:
+                print("Selection out of bounds.")
+
+        remove_queue = [search_result[m - 1] for m in selection]
+        print("Would you like to remove? ")
+        for m in remove_queue:
+            print("{} by {}".format(m.name, m.author))
+
+        print("[y/n]: ", end="")
+
+        if input() != "y":
+            return False
+
+        Manager(self.path).remove_mod_list(remove_queue)
+
+
 def run():
     t = CLI()
+
 
 if __name__ == "__main__":
     run()
