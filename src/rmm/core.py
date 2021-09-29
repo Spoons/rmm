@@ -9,6 +9,11 @@ from enum import Enum
 from bs4 import BeautifulSoup
 from rmm.utils.processes import execute
 
+DEFAULT_GAME_PATHS = [
+    "~/GOG Games/RimWorld",
+    "~/.local/share/Steam/SteamApps/common/RimWorld",
+]
+
 
 class InvalidSelectionException(Exception):
     pass
@@ -34,21 +39,21 @@ class Mod:
         shutil.rmtree(self.fp)
 
     def install(self, moddir):
-        new_path = moddir + "/" + str(self.steamid)
+        new_path = os.path.join(moddir, str(self.steamid))
         shutil.copytree(self.fp, new_path, dirs_exist_ok=True)
 
     def update_parent_dir(self, new_path):
-        self.fp = new_path + "/" + str(self.steamid)
+        self.fp = os.path.join(new_path, str(self.steamid))
 
     @classmethod
     def create_from_path(cls, filepath):
         try:
-            tree = ET.parse(filepath + "/About/About.xml")
+            tree = ET.parse(os.path.join(filepath, "About/About.xml"))
             root = tree.getroot()
             name = root.find("name").text
             author = root.find("author").text
             versions = [v.text for v in root.find("supportedVersions").findall("li")]
-            with open(filepath + "/About/PublishedFileId.txt") as f:
+            with open(os.path.join(filepath, "About/PublishedFileId.txt")) as f:
                 steamid = f.readline().strip()
 
             return Mod(name, steamid, versions, author, filepath)
@@ -145,14 +150,16 @@ class Manager:
     def __init__(self, moddir):
         self.moddir = moddir
         self.cachedir = "/tmp/rmm_cache"
-        self.cache_content_dir = self.cachedir + "/steamapps/workshop/content/294100/"
+        self.cache_content_dir = os.path.join(
+            self.cachedir, "steamapps/workshop/content/294100/"
+        )
 
     def get_mods_list(self) -> list[Mod]:
         return list(
             filter(
                 None,
                 [
-                    Mod.create_from_path(self.moddir + "/" + d)
+                    Mod.create_from_path(os.path.join(self.moddir, d))
                     for d in os.listdir(self.moddir)
                 ],
             )
@@ -160,7 +167,8 @@ class Manager:
 
     def modlist_from_list_cache(self, mods):
         return [
-            Mod.create_from_path(self.cache_content_dir + "/" + str(d)) for d in mods
+            Mod.create_from_path(os.path.join(self.cache_content_dir, str(d)))
+            for d in mods
         ]
 
     def get_mods_names(self):
@@ -206,9 +214,9 @@ class Manager:
         return True
 
     def get_mod_table(self):
-        from tabulate import tabulate
+        import tabulate
 
-        return tabulate([m.__cell__() for m in self.get_mods_list()])
+        return tabulate.tabulate([m.__cell__() for m in self.get_mods_list()], headers=["Name", "Author", "Versions", "SteamID"])
 
 
 class CLI:
@@ -235,25 +243,31 @@ The available commands are:
         args = parser.parse_args(sys.argv[1:2])
 
         try:
-            self.path = os.environ["RMM_PATH"]
+            self.path = os.path.expanduser( os.environ["RMM_PATH"] )
         except KeyError as err:
-            print(
-                "Rimworld mod directory not set.\n"
-                'Please set "RMM_PATH" variable to the RimWorld mod directory in your environment.\n'
-                '\nexport RMM_PATH="~/games/rimworld/game/Mods"\nrmm list\n or \n'
-                'RMM_PATH="~/games/rimworld/game/Mods" rmm list'
-            )
-            exit(1)
+            print("RimWorld mod directory not set.\n" "Trying default directories...")
+            for path in DEFAULT_GAME_PATHS:
+                p = os.path.expanduser((os.path.join(path, "game", "Mods")))
+                if os.path.isdir(p):
+                    self.path = p
+        finally:
+            if not hasattr(self, "path"):
+                print(
+                    "Game not found.\n"
+                    'Please set "RMM_PATH" variable to the RimWorld mod directory in your environment.\n'
+                    '\nexport RMM_PATH="~/games/rimworld"\nrmm list\n or \n'
+                    'RMM_PATH="~/games/rimworld" rmm list'
+                )
+                exit(1)
 
         if not os.path.basename(self.path) == "Mods":
-            print("This directory is not the 'Mods' directory. Scanning...")
             for root, dirs, files in os.walk(self.path):
                 if os.path.basename(root) == "game" and "Mods" in dirs:
                     # TODO read gameinfo file to ensure is actually rimworld
-                    self.path = root + "/" + "Mods"
+                    self.path = os.path.join(root, "Mods")
                     break
 
-            print("Found: {}\n".format(self.path))
+        print("Using: {}\n".format(self.path))
 
         if not hasattr(self, args.command):
             print("Unrecognized command")
@@ -439,7 +453,9 @@ The available commands are:
         Manager(self.path).remove_mod_list(remove_queue)
 
     def query(self):
-        parser = argparse.ArgumentParser(prog="rmm", description="query locally installed mods")
+        parser = argparse.ArgumentParser(
+            prog="rmm", description="query locally installed mods"
+        )
         parser.add_argument("modname", help="name of mod")
         args = parser.parse_args(sys.argv[2:])
 
