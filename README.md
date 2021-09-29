@@ -44,8 +44,8 @@ RMM will first search for the default GOG games installation directory, steamcac
 1. A. Set RMM_PATH variable to the 'Mods' sub directory in your Rimworld game folder in your .bashrc or .zshrc. For example:
 
 ``` sh
-# Note please update this path to your actual game mods folder directory
-echo 'export RMM_PATH="$HOME/apps/rimworld/game/Mods"
+# Note please update this path to your actual game or mod directory
+echo 'export RMM_PATH="$HOME/GOG\ Games/RimWorld" > ~/.bashrc
 ```
 
 1. B. Alternatively, you can change this path at runtime. This is useful when managing multiple copies of the games.
@@ -72,7 +72,7 @@ Clone repository and install with setuptools editable mode.
 ```
 mkdir -p ~/build
 git clone https://github.com/Spoons/rmm.git ~/build/rmm
-pip install --local -e ~/build/rmm
+pip install ~/build/rmm
 ```
 
 ## Useage
@@ -87,9 +87,19 @@ Search workshop packages:
 rmm search modname
 ```
 
+Search locally installed mods
+``` 
+rmm query modname
+```
+
 Install package:
 ```
 rmm sync rimhud
+```
+
+Removing a package:
+```
+rmm remove fuzzy
 ```
 
 Saving a mod list
