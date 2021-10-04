@@ -63,7 +63,7 @@ class Mod:
 
 class ModList:
     @classmethod
-    def read_text_modlist(cls, path):
+    def read_text_modlist(cls, path: str) -> list[str]:
         mods = []
         with open(path) as f:
             for line in f:
@@ -75,14 +75,17 @@ class ModList:
         return mods
 
     @classmethod
-    def export_text_modlist(cls, mods):
+    def export_text_modlist(cls, mods: list[Mod], human_format: bool=True) -> str:
         output = ""
         for m in mods:
-            output += "{}\n".format(m.steamid)
+            if human_format:
+                output += "{} #{} by {}\n".format(m.steamid, m.name, m.author)
+            else:
+                output += "{}".format(m.steamid)
         return output
 
     @classmethod
-    def write_text_modlist(cls, mods, path):
+    def write_text_modlist(cls, mods: list[Mod], path: str) -> None:
         with open(path, "w") as f:
             f.write(cls.export_text_modlist(mods))
 
