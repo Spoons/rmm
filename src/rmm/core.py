@@ -280,9 +280,10 @@ The available commands are:
         parser = argparse.ArgumentParser(
             prog="rmm", description="searches the workshop for specified modname"
         )
-        parser.add_argument("modname", help="name of mod")
+        parser.add_argument("modname", help="name of mod", nargs="*")
         args = parser.parse_args(sys.argv[2:])
-        results = WorkshopWebScraper.workshop_search(args.modname)
+        search_term = ' '.join(args.modname)
+        results = WorkshopWebScraper.workshop_search(search_term)
         from tabulate import tabulate
 
         print(tabulate(reversed(results)))
@@ -305,13 +306,16 @@ The available commands are:
     def list(self):
         if not (s := Manager(self.path).get_mod_table()):
             print("No mods installed. Add them using the 'sync' command.")
-        print(s)
+            print(s)
+
+    def install(self):
+        self.sync()
 
     def sync(self):
         parser = argparse.ArgumentParser(
             prog="rmm", description="Syncs a mod from the workshop"
         )
-        parser.add_argument("modname", help="mod or modlist to sync")
+        parser.add_argument("modname", help="mod or modlist to sync", nargs='*')
         parser.add_argument(
             "-f",
             "--file",
@@ -319,12 +323,13 @@ The available commands are:
             help="specify modlist instead of modname",
         )
         args = parser.parse_args(sys.argv[2:])
+        search_term = ' '.join(args.modname)
 
         if args.file:
-            Manager(self.path).sync_mod_list(args.modname)
+            Manager(self.path).sync_mod_list(search_term)
 
         if not args.file:
-            results = WorkshopWebScraper.workshop_search(args.modname)
+            results = WorkshopWebScraper.workshop_search(search_term)
             for n, element in enumerate(reversed(results)):
                 n = abs(n - len(results))
                 print(
@@ -334,7 +339,7 @@ The available commands are:
                         element[WorkshopResultsEnum.AUTHOR.value],
                     )
                 )
-            print("Packages to install (eg: 1 2 3, 1-3 or ^4)")
+                print("Packages to install (eg: 1 2 3, 1-3 or ^4)")
 
             while True:
                 try:
@@ -395,15 +400,16 @@ The available commands are:
 
     def remove(self):
         parser = argparse.ArgumentParser(prog="rmm", description="remove a mod")
-        parser.add_argument("modname", help="name of mod")
+        parser.add_argument("modname", help="name of mod", nargs="*")
         args = parser.parse_args(sys.argv[2:])
+        search_term = ' '.join(args.modname)
 
         search_result = [
             r
             for r in Manager(self.path).get_mods_list()
-            if str.lower(args.modname) in str.lower(r.name)
-            or str.lower(args.modname) in str.lower(r.author)
-            or args.modname in r.steamid
+            if str.lower(search_term) in str.lower(r.name)
+            or str.lower(search_term) in str.lower(r.author)
+            or search_term in r.steamid
         ]
         for n, element in enumerate(reversed(search_result)):
             n = abs(n - len(search_result))
@@ -414,7 +420,7 @@ The available commands are:
                     element.author,
                 )
             )
-        print("Packages to remove (eg: 1 2 3, 1-3 or ^4)")
+            print("Packages to remove (eg: 1 2 3, 1-3 or ^4)")
 
         def expand_ranges(s):
             import re
@@ -456,15 +462,16 @@ The available commands are:
         parser = argparse.ArgumentParser(
             prog="rmm", description="query locally installed mods"
         )
-        parser.add_argument("modname", help="name of mod")
+        parser.add_argument("modname", help="name of mod", nargs="*")
         args = parser.parse_args(sys.argv[2:])
+        search_term = ' '.join(args.modname)
 
         search_result = [
             r
             for r in Manager(self.path).get_mods_list()
-            if str.lower(args.modname) in str.lower(r.name)
-            or str.lower(args.modname) in str.lower(r.author)
-            or args.modname in r.steamid
+            if str.lower(search_term) in str.lower(r.name)
+            or str.lower(search_term) in str.lower(r.author)
+            or search_term in r.steamid
         ]
         print("Found: ")
         for n, element in enumerate(reversed(search_result)):
