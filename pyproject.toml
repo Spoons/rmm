@@ -2,7 +2,5 @@
 requires = [
     "setuptools>=42",
     "wheel",
-    "bs4",
-    "tabulate",
 ]
 build-backend = "setuptools.build_meta"
