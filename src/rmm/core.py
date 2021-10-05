@@ -59,6 +59,7 @@ class Mod:
             return Mod(name, steamid, versions, author, filepath)
         except NotADirectoryError:
             print(os.path.basename(filepath) + " is not a mod. Skipping.")
+            return None
 
 
 class ModList:
@@ -309,6 +310,7 @@ The available commands are:
     def list(self):
         if not (s := Manager(self.path).get_mod_table()):
             print("No mods installed. Add them using the 'sync' command.")
+        else:
             print(s)
 
     def install(self):
