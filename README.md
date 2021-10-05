@@ -62,7 +62,7 @@ RMM_PATH="~/PATHTOGAME/game/Mods" rmm list
 1. Install from pypi
 
 ``` sh
-python3 -m pip install --local rmm
+python3 -m pip install --user rmm
 ```
 
 
