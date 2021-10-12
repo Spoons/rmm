@@ -3,11 +3,11 @@ import os
 import sys
 import xml.etree.ElementTree as ET
 import requests as req
-import shutil
 import argparse
+
 from enum import Enum
 from bs4 import BeautifulSoup
-from rmm.utils.processes import execute
+from rmm.utils.processes import execute, run_sh
 
 DEFAULT_GAME_PATHS = [
     "~/GOG Games/RimWorld",
@@ -36,11 +36,12 @@ class Mod:
         return [self.name, self.author, self.steamid, self.versions]
 
     def remove(self):
-        shutil.rmtree(self.fp)
+        run_sh(f"rm -r {self.fp}")
 
     def install(self, moddir):
         new_path = os.path.join(moddir, str(self.steamid))
-        shutil.copytree(self.fp, new_path, dirs_exist_ok=True)
+        run_sh(f"cp -r {self.fp} {new_path}")
+
 
     def update_parent_dir(self, new_path):
         self.fp = os.path.join(new_path, str(self.steamid))
@@ -99,12 +100,13 @@ class SteamDownloader:
                 str(x) for x in mods
             )
 
-        query = 'steamcmd +login anonymous +force_install_dir "{}" "{}" +quit'.format(
+        query = 'steamcmd +login anonymous +force_install_dir "{}" "{}" +quit >&2'.format(
             folder, workshop_format(mods)
         )
 
-        for line in execute(query):
-            print(line, end="")
+        # for line in execute(query):
+        #     print(line, end="")
+        run_sh(query)
 
     @classmethod
     def download_modlist(cls, mods, path):
@@ -186,9 +188,8 @@ class Manager:
 
     def sync_mod(self, steamid):
         SteamDownloader().download([steamid], self.cachedir)
-        print("\n\nsteamid: " + str(steamid) + "\n\n")
-        mod = Mod.create_from_path(self.cache_content_dir + str(steamid))
-        print(mod)
+        mod = Mod.create_from_path(os.path.join(self.cache_content_dir, str(steamid)))
+        run_sh(f"rm -rf {os.path.join(self.moddir, str(steamid))}")
         mod.install(self.moddir)
         print("\nInstalled {}".format(mod.name))
 
@@ -198,9 +199,10 @@ class Manager:
         mods = self.modlist_from_list_cache(mods)
         print("\n")
         for n in mods:
-            print("Installing {}".format(n.name))
-            n.update_parent_dir(self.cache_content_dir)
+            print(f"Installing {n.name}")
+            run_sh(f"rm -rf {os.path.join(self.moddir, str(n.steamid))}")
             n.install(self.moddir)
+
 
     def update_all_mods(self, fp):
         mods = self.get_mods_list()
@@ -208,6 +210,7 @@ class Manager:
         print("\n")
         for n in mods:
             print("Updating {}".format(n.name))
+            n.remove()
             n.update_parent_dir(self.cache_content_dir)
             n.install(self.moddir)
 
@@ -370,6 +373,7 @@ The available commands are:
             Manager(self.path).sync_mod(
                 results[selection][WorkshopResultsEnum.STEAMID.value]
             )
+        print("Package installation complete.")
 
     def update(self):
         parser = argparse.ArgumentParser(
@@ -408,7 +412,6 @@ The available commands are:
         parser.add_argument("modname", help="name of mod", nargs="*")
         args = parser.parse_args(sys.argv[2:])
         search_term = ' '.join(args.modname)
-
         search_result = [
             r
             for r in Manager(self.path).get_mods_list()
@@ -416,6 +419,11 @@ The available commands are:
             or str.lower(search_term) in str.lower(r.author)
             or search_term in r.steamid
         ]
+
+        if not search_result:
+            print(f"No packages matching {search_term}")
+            return False
+
         for n, element in enumerate(reversed(search_result)):
             n = abs(n - len(search_result))
             print(
@@ -425,7 +433,7 @@ The available commands are:
                     element.author,
                 )
             )
-            print("Packages to remove (eg: 1 2 3, 1-3 or ^4)")
+        print("Packages to remove (eg: 1 2 3, 1-3 or ^4)")
 
         def expand_ranges(s):
             import re
@@ -478,7 +486,9 @@ The available commands are:
             or str.lower(search_term) in str.lower(r.author)
             or search_term in r.steamid
         ]
-        print("Found: ")
+        if not search_result:
+            print(f"No packages matching {search_term}")
+            return False
         for n, element in enumerate(reversed(search_result)):
             n = abs(n - len(search_result))
             print(
