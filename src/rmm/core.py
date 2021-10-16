@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 import os
+from posixpath import expanduser
 import sys
 from types import ClassMethodDescriptorType
 from typing import Iterable
 import xml.etree.ElementTree as ET
 import requests as req
 import argparse
+import tempfile
 
 from enum import Enum
 from bs4 import BeautifulSoup
@@ -13,7 +15,7 @@ from rmm.utils.processes import execute, run_sh
 
 DEFAULT_GAME_PATHS = [
     "~/GOG Games/RimWorld",
-    "~/.local/share/Steam/SteamApps/common/RimWorld",
+    "~/.local/share/Steam/steamapps/common/RimWorld",
 ]
 
 
@@ -55,8 +57,11 @@ class Mod:
             name = root.find("name").text
             author = root.find("author").text
             versions = [v.text for v in root.find("supportedVersions").findall("li")]
-            with open(os.path.join(filepath, "About/PublishedFileId.txt")) as f:
-                steamid = f.readline().strip()
+            try:
+                with open(os.path.join(filepath, "About/PublishedFileId.txt")) as f:
+                    steamid = f.readline().strip()
+            except FileNotFoundError:
+                steamid = None
 
             return Mod(name, steamid, versions, author, filepath)
         except (NotADirectoryError, FileNotFoundError) as e:
@@ -98,7 +103,7 @@ class ModList:
 
     @classmethod
     def to_int_list(cls, mods: list[Mod]) -> list[int]:
-        return [m.steamid for m in mods]
+        return filter(None, [m.steamid for m in mods])
 
 
 class ModListFile:
@@ -138,10 +143,8 @@ class SteamDownloader:
                 str(x) for x in mods
             )
 
-        query = (
-            'steamcmd +login anonymous +force_install_dir "{}" "{}" +quit >&2'.format(
-                folder, workshop_format(mods)
-            )
+        query = 'env HOME="/tmp/rmm-steamcmd" steamcmd +login anonymous +force_install_dir "{}" "{}" +quit >&2'.format(
+            folder, workshop_format(mods)
         )
         run_sh(query)
 
@@ -190,18 +193,30 @@ class WorkshopWebScraper:
 
 
 class Manager:
-    def __init__(self, moddir):
+    def __init__(self, moddir, workshop_path):
+        self.workshop_path = workshop_path
         self.moddir = moddir
         self.cachedir = "/tmp/rmm_cache"
         self.cache_content_dir = os.path.join(
             self.cachedir, "steamapps/workshop/content/294100/"
         )
 
+    def get_mods_as_list_both(self) -> list[Mod]:
+        if (
+            self.workshop_path
+            and (workshop_mods := self.get_mods_as_list_workshop()) is not None
+        ):
+            return self.get_mods_as_list() + workshop_mods
+        return self.get_mods_as_list()
+
+    def get_mods_as_list_workshop(self) -> list[Mod]:
+        return ModList.get_mods_list_by_path(self.workshop_path)
+
     def get_mods_as_list(self) -> list[Mod]:
         return ModList.get_mods_list_by_path(self.moddir)
 
     def get_mods_names(self) -> list[str]:
-        return ModList.get_mods_list_names(self.get_mods_as_list())
+        return ModList.get_mods_list_names(self.get_mods_as_list_both())
 
     def backup_mod_dir(self, tarball_fp):
         query = '(cd {}; tar -vcaf "{}" ".")'.format(self.moddir, tarball_fp)
@@ -212,11 +227,16 @@ class Manager:
         SteamDownloader().download(mod_list, self.cachedir)
         mods = ModList.get_mods_list_filter_by_id(self.cache_content_dir, mod_list)
         current_mods = self.get_mods_as_list()
+        workshop_mods = self.get_mods_as_list_workshop()
         for n in mods:
             print(f"Installing {n.name}")
+            install_path = self.moddir
             if c := ModList.get_by_id(current_mods, n.steamid):
                 c.remove()
-            n.install(self.moddir)
+            if c := ModList.get_by_id(workshop_mods, n.steamid):
+                c.remove()
+                install_path = self.workshop_path
+            n.install(install_path)
 
         return True
 
@@ -227,7 +247,7 @@ class Manager:
         return self.sync_mod_list(ModListFile.read_text_modlist(modlist_fp))
 
     def update_all_mods(self):
-        self.sync_mod_list(ModList.to_int_list(self.get_mods_as_list()))
+        self.sync_mod_list(ModList.to_int_list(self.get_mods_as_list_both()))
 
     def remove_mod_list(self, modlist: list[Mod]) -> bool:
         for m in modlist:
@@ -239,8 +259,8 @@ class Manager:
         import tabulate
 
         return tabulate.tabulate(
-            [m.__cell__() for m in self.get_mods_as_list()],
-            headers=["Name", "Author", "Versions", "SteamID"],
+            [m.__cell__() for m in self.get_mods_as_list_both()],
+            headers=["Name", "Author", "SteamID", "Versions"],
         )
 
 
@@ -292,7 +312,34 @@ The available commands are:
                     self.path = os.path.join(root, "Mods")
                     break
 
-        print("Using: {}\n".format(self.path))
+        print("rimworld path: {}".format(self.path))
+
+        try:
+            self.workshop_path = os.path.expanduser(os.environ["RMM_WORKSHOP_PATH"])
+            if (
+                not os.path.basename(self.workshop_path) == "294100"
+                and "Steam" in self.workshop_path
+            ):
+                self.workshop_path = os.path.join(
+                    "".join(self.workshop_path.partition("Steam/")[0:2]),
+                    "steamapps/workshop/content/294100",
+                )
+
+            if not os.path.isdir(self.workshop_path):
+                print(f"workshop path {self.workshop_path} not found. ignoring.")
+                self.workshop_path = None
+
+        except KeyError as err:
+            if "/Steam/steamapps/common" in self.path:
+                self.workshop_path = os.path.join(
+                    "".join(self.path.partition("/Steam/steamapps")[0:2]),
+                    "workshop/content/294100",
+                )
+            else:
+                self.workshop_path = None
+
+        if self.workshop_path:
+            print(f"workshop path: {self.workshop_path}\n")
 
         if not hasattr(self, args.command):
             print("Unrecognized command")
@@ -321,7 +368,7 @@ The available commands are:
             "filename", help="filename to write modlist to or specify '-' for stdout"
         )
         args = parser.parse_args(sys.argv[2:])
-        mods = Manager(self.path).get_mods_as_list()
+        mods = Manager(self.path, self.workshop_path).get_mods_as_list_both()
         if args.filename != "-":
             ModListFile.write_text_modlist(mods, args.filename)
             print("Mod list written to {}.\n".format(args.filename))
@@ -329,7 +376,7 @@ The available commands are:
             print(ModListFile.export_text_modlist(mods))
 
     def list(self):
-        if not (s := Manager(self.path).get_mod_table()):
+        if not (s := Manager(self.path, self.workshop_path).get_mod_table()):
             print("No mods installed. Add them using the 'sync' command.")
         else:
             print(s)
@@ -352,7 +399,7 @@ The available commands are:
         search_term = " ".join(args.modname)
 
         if args.file:
-            Manager(self.path).sync_mod_list_file(search_term)
+            Manager(self.path, self.workshop_path).sync_mod_list_file(search_term)
 
         if not args.file:
             results = WorkshopWebScraper.workshop_search(search_term)
@@ -388,7 +435,7 @@ The available commands are:
             if input() != "y":
                 return False
 
-            Manager(self.path).sync_mod(
+            Manager(self.path, self.workshop_path).sync_mod(
                 results[selection][WorkshopResultsEnum.STEAMID.value]
             )
         print("Package installation complete.")
@@ -402,14 +449,16 @@ The available commands are:
 
         print(
             "Preparing to update following packages: "
-            + ", ".join(str(x) for x in Manager(self.path).get_mods_names())
+            + ", ".join(
+                str(x) for x in Manager(self.path, self.workshop_path).get_mods_names()
+            )
             + "\n\nWould you like to continue? [y/n]"
         )
 
         if input() != "y":
             return False
 
-        Manager(self.path).update_all_mods()
+        Manager(self.path, self.workshop_path).update_all_mods()
         print("Package update complete.")
 
     def backup(self):
@@ -422,7 +471,7 @@ The available commands are:
         args = parser.parse_args(sys.argv[2:])
 
         print("Backing up mod directory to '{}.\n".format(args.filename))
-        Manager(self.path).backup_mod_dir(args.filename)
+        Manager(self.path, self.workshop_path).backup_mod_dir(args.filename)
         print("Backup completed to " + args.filename + ".")
 
     def remove(self):
@@ -432,10 +481,10 @@ The available commands are:
         search_term = " ".join(args.modname)
         search_result = [
             r
-            for r in Manager(self.path).get_mods_as_list()
+            for r in Manager(self.path, self.workshop_path).get_mods_as_list_both()
             if str.lower(search_term) in str.lower(r.name)
             or str.lower(search_term) in str.lower(r.author)
-            or search_term in r.steamid
+            or search_term == r.steamid
         ]
 
         if not search_result:
@@ -487,7 +536,7 @@ The available commands are:
         if input() != "y":
             return False
 
-        Manager(self.path).remove_mod_list(remove_queue)
+        Manager(self.path, self.workshop_path).remove_mod_list(remove_queue)
 
     def query(self):
         parser = argparse.ArgumentParser(
@@ -499,10 +548,10 @@ The available commands are:
 
         search_result = [
             r
-            for r in Manager(self.path).get_mods_as_list()
+            for r in Manager(self.path, self.workshop_path).get_mods_as_list_both()
             if str.lower(search_term) in str.lower(r.name)
             or str.lower(search_term) in str.lower(r.author)
-            or search_term in r.steamid
+            or search_term == r.steamid
         ]
         if not search_result:
             print(f"No packages matching {search_term}")
