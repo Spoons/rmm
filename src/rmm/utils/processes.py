@@ -4,7 +4,6 @@ from functools import partial
 cmd_run = partial(subprocess.Popen, text=True, shell=True)
 
 
-
 def execute(cmd):
     with subprocess.Popen(
         cmd,
@@ -21,6 +20,7 @@ def execute(cmd):
                 if r != 0:
                     raise subprocess.CalledProcessError(r, cmd)
                 break
+
 
 def run_sh(cmd):
     subprocess.check_output(cmd, text=True, shell=True).strip()

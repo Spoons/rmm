@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import os
 import sys
+from types import ClassMethodDescriptorType
+from typing import Iterable
 import xml.etree.ElementTree as ET
 import requests as req
 import argparse
@@ -42,7 +44,6 @@ class Mod:
         new_path = os.path.join(moddir, str(self.steamid))
         run_sh(f"cp -r {self.fp} {new_path}")
 
-
     def update_parent_dir(self, new_path):
         self.fp = os.path.join(new_path, str(self.steamid))
 
@@ -58,14 +59,51 @@ class Mod:
                 steamid = f.readline().strip()
 
             return Mod(name, steamid, versions, author, filepath)
-        except NotADirectoryError:
-            print(os.path.basename(filepath) + " is not a mod. Skipping.")
+        except (NotADirectoryError, FileNotFoundError) as e:
+            print(os.path.basename(filepath) + " is not a mod. Ignoring.")
             return None
 
 
 class ModList:
     @classmethod
-    def read_text_modlist(cls, path: str) -> list[str]:
+    def _get_mods_list(cls, path: str, f: Iterable) -> list[Mod]:
+        return list(
+            filter(
+                None,
+                map(
+                    lambda d: Mod.create_from_path(os.path.join(path, d)),
+                    f,
+                ),
+            )
+        )
+
+    @classmethod
+    def get_mods_list_by_path(cls, path: str) -> list[Mod]:
+        return cls._get_mods_list(path, os.listdir(path))
+
+    @classmethod
+    def get_mods_list_filter_by_id(cls, path: str, mods: list[int]) -> list[Mod]:
+        return cls._get_mods_list(path, [str(m) for m in mods])
+
+    @classmethod
+    def get_mods_list_names(cls, mods: list[Mod]) -> list[str]:
+        return [n.name for n in mods]
+
+    @classmethod
+    def get_by_id(cls, mods: list[Mod], steamid: int):
+        for n in mods:
+            if n.steamid == steamid:
+                return n
+        return None
+
+    @classmethod
+    def to_int_list(cls, mods: list[Mod]) -> list[int]:
+        return [m.steamid for m in mods]
+
+
+class ModListFile:
+    @classmethod
+    def read_text_modlist(cls, path: str) -> list[int]:
         mods = []
         with open(path) as f:
             for line in f:
@@ -77,7 +115,7 @@ class ModList:
         return mods
 
     @classmethod
-    def export_text_modlist(cls, mods: list[Mod], human_format: bool=True) -> str:
+    def export_text_modlist(cls, mods: list[Mod], human_format: bool = True) -> str:
         output = ""
         for m in mods:
             if human_format:
@@ -100,12 +138,11 @@ class SteamDownloader:
                 str(x) for x in mods
             )
 
-        query = 'steamcmd +login anonymous +force_install_dir "{}" "{}" +quit >&2'.format(
-            folder, workshop_format(mods)
+        query = (
+            'steamcmd +login anonymous +force_install_dir "{}" "{}" +quit >&2'.format(
+                folder, workshop_format(mods)
+            )
         )
-
-        # for line in execute(query):
-        #     print(line, end="")
         run_sh(query)
 
     @classmethod
@@ -160,59 +197,37 @@ class Manager:
             self.cachedir, "steamapps/workshop/content/294100/"
         )
 
-    def get_mods_list(self) -> list[Mod]:
-        return list(
-            filter(
-                None,
-                [
-                    Mod.create_from_path(os.path.join(self.moddir, d))
-                    for d in os.listdir(self.moddir)
-                ],
-            )
-        )
+    def get_mods_as_list(self) -> list[Mod]:
+        return ModList.get_mods_list_by_path(self.moddir)
 
-    def modlist_from_list_cache(self, mods):
-        return [
-            Mod.create_from_path(os.path.join(self.cache_content_dir, str(d)))
-            for d in mods
-        ]
-
-    def get_mods_names(self):
-        mods = self.get_mods_list()
-        return [n.name for n in mods]
+    def get_mods_names(self) -> list[str]:
+        return ModList.get_mods_list_names(self.get_mods_as_list())
 
     def backup_mod_dir(self, tarball_fp):
         query = '(cd {}; tar -vcaf "{}" ".")'.format(self.moddir, tarball_fp)
         for line in execute(query):
             print(line, end="")
 
-    def sync_mod(self, steamid):
-        SteamDownloader().download([steamid], self.cachedir)
-        mod = Mod.create_from_path(os.path.join(self.cache_content_dir, str(steamid)))
-        run_sh(f"rm -rf {os.path.join(self.moddir, str(steamid))}")
-        mod.install(self.moddir)
-        print("\nInstalled {}".format(mod.name))
-
-    def sync_mod_list(self, modlist_fp):
-        mods = ModList.read_text_modlist(modlist_fp)
-        SteamDownloader().download(mods, self.cachedir)
-        mods = self.modlist_from_list_cache(mods)
-        print("\n")
+    def sync_mod_list(self, mod_list: list[int]) -> bool:
+        SteamDownloader().download(mod_list, self.cachedir)
+        mods = ModList.get_mods_list_filter_by_id(self.cache_content_dir, mod_list)
+        current_mods = self.get_mods_as_list()
         for n in mods:
             print(f"Installing {n.name}")
-            run_sh(f"rm -rf {os.path.join(self.moddir, str(n.steamid))}")
+            if c := ModList.get_by_id(current_mods, n.steamid):
+                c.remove()
             n.install(self.moddir)
 
+        return True
 
-    def update_all_mods(self, fp):
-        mods = self.get_mods_list()
-        SteamDownloader().download_modlist(mods, self.cachedir)
-        print("\n")
-        for n in mods:
-            print("Updating {}".format(n.name))
-            n.remove()
-            n.update_parent_dir(self.cache_content_dir)
-            n.install(self.moddir)
+    def sync_mod(self, steamid: int) -> bool:
+        return self.sync_mod_list([steamid])
+
+    def sync_mod_list_file(self, modlist_fp):
+        return self.sync_mod_list(ModListFile.read_text_modlist(modlist_fp))
+
+    def update_all_mods(self):
+        self.sync_mod_list(ModList.to_int_list(self.get_mods_as_list()))
 
     def remove_mod_list(self, modlist: list[Mod]) -> bool:
         for m in modlist:
@@ -223,7 +238,10 @@ class Manager:
     def get_mod_table(self):
         import tabulate
 
-        return tabulate.tabulate([m.__cell__() for m in self.get_mods_list()], headers=["Name", "Author", "Versions", "SteamID"])
+        return tabulate.tabulate(
+            [m.__cell__() for m in self.get_mods_as_list()],
+            headers=["Name", "Author", "Versions", "SteamID"],
+        )
 
 
 class CLI:
@@ -250,7 +268,7 @@ The available commands are:
         args = parser.parse_args(sys.argv[1:2])
 
         try:
-            self.path = os.path.expanduser( os.environ["RMM_PATH"] )
+            self.path = os.path.expanduser(os.environ["RMM_PATH"])
         except KeyError as err:
             print("RimWorld mod directory not set.\n" "Trying default directories...")
             for path in DEFAULT_GAME_PATHS:
@@ -289,7 +307,7 @@ The available commands are:
         )
         parser.add_argument("modname", help="name of mod", nargs="*")
         args = parser.parse_args(sys.argv[2:])
-        search_term = ' '.join(args.modname)
+        search_term = " ".join(args.modname)
         results = WorkshopWebScraper.workshop_search(search_term)
         from tabulate import tabulate
 
@@ -303,12 +321,12 @@ The available commands are:
             "filename", help="filename to write modlist to or specify '-' for stdout"
         )
         args = parser.parse_args(sys.argv[2:])
-        mods = Manager(self.path).get_mods_list()
+        mods = Manager(self.path).get_mods_as_list()
         if args.filename != "-":
-            ModList.write_text_modlist(mods, args.filename)
+            ModListFile.write_text_modlist(mods, args.filename)
             print("Mod list written to {}.\n".format(args.filename))
         else:
-            print(ModList.export_text_modlist(mods))
+            print(ModListFile.export_text_modlist(mods))
 
     def list(self):
         if not (s := Manager(self.path).get_mod_table()):
@@ -323,7 +341,7 @@ The available commands are:
         parser = argparse.ArgumentParser(
             prog="rmm", description="Syncs a mod from the workshop"
         )
-        parser.add_argument("modname", help="mod or modlist to sync", nargs='*')
+        parser.add_argument("modname", help="mod or modlist to sync", nargs="*")
         parser.add_argument(
             "-f",
             "--file",
@@ -331,10 +349,10 @@ The available commands are:
             help="specify modlist instead of modname",
         )
         args = parser.parse_args(sys.argv[2:])
-        search_term = ' '.join(args.modname)
+        search_term = " ".join(args.modname)
 
         if args.file:
-            Manager(self.path).sync_mod_list(search_term)
+            Manager(self.path).sync_mod_list_file(search_term)
 
         if not args.file:
             results = WorkshopWebScraper.workshop_search(search_term)
@@ -391,7 +409,7 @@ The available commands are:
         if input() != "y":
             return False
 
-        Manager(self.path).update_all_mods(args.filename)
+        Manager(self.path).update_all_mods()
         print("Package update complete.")
 
     def backup(self):
@@ -411,10 +429,10 @@ The available commands are:
         parser = argparse.ArgumentParser(prog="rmm", description="remove a mod")
         parser.add_argument("modname", help="name of mod", nargs="*")
         args = parser.parse_args(sys.argv[2:])
-        search_term = ' '.join(args.modname)
+        search_term = " ".join(args.modname)
         search_result = [
             r
-            for r in Manager(self.path).get_mods_list()
+            for r in Manager(self.path).get_mods_as_list()
             if str.lower(search_term) in str.lower(r.name)
             or str.lower(search_term) in str.lower(r.author)
             or search_term in r.steamid
@@ -477,11 +495,11 @@ The available commands are:
         )
         parser.add_argument("modname", help="name of mod", nargs="*")
         args = parser.parse_args(sys.argv[2:])
-        search_term = ' '.join(args.modname)
+        search_term = " ".join(args.modname)
 
         search_result = [
             r
-            for r in Manager(self.path).get_mods_list()
+            for r in Manager(self.path).get_mods_as_list()
             if str.lower(search_term) in str.lower(r.name)
             or str.lower(search_term) in str.lower(r.author)
             or search_term in r.steamid
