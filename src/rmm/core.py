@@ -2,7 +2,6 @@
 import os
 from posixpath import expanduser
 import sys
-from types import ClassMethodDescriptorType
 from typing import Iterable
 import xml.etree.ElementTree as ET
 import requests as req
@@ -143,7 +142,7 @@ class SteamDownloader:
                 str(x) for x in mods
             )
 
-        query = 'env HOME="/tmp/rmm-steamcmd" steamcmd +login anonymous +force_install_dir "{}" "{}" +quit >&2'.format(
+        query = 'env HOME="{}" steamcmd +login anonymous "{}" +quit >&2'.format(
             folder, workshop_format(mods)
         )
         run_sh(query)
@@ -196,9 +195,24 @@ class Manager:
     def __init__(self, moddir, workshop_path):
         self.workshop_path = workshop_path
         self.moddir = moddir
-        self.cachedir = "/tmp/rmm_cache"
+        # self.cachedir = "/tmp/rmm_cache"
+        self.cachedir = None
+
+        for dirs in os.listdir("/tmp"):
+            if (
+                dirs[0:4] == "rmm-"
+                and os.path.isdir(os.path.join("/tmp", dirs))
+                and ".rmm" in os.listdir(os.path.join("/tmp", dirs))
+            ):
+                self.cachedir = os.path.join("/tmp", dirs)
+
+        if not self.cachedir:
+            self.cachedir = tempfile.mkdtemp(prefix="rmm-")
+            with open(os.path.join(self.cachedir, ".rmm"), "w"):
+                pass
+
         self.cache_content_dir = os.path.join(
-            self.cachedir, "steamapps/workshop/content/294100/"
+            self.cachedir, ".steam/steamapps/workshop/content/294100/"
         )
 
     def get_mods_as_list_both(self) -> list[Mod]:
@@ -227,13 +241,16 @@ class Manager:
         SteamDownloader().download(mod_list, self.cachedir)
         mods = ModList.get_mods_list_filter_by_id(self.cache_content_dir, mod_list)
         current_mods = self.get_mods_as_list()
-        workshop_mods = self.get_mods_as_list_workshop()
+        if self.workshop_path:
+            workshop_mods = self.get_mods_as_list_workshop()
         for n in mods:
             print(f"Installing {n.name}")
             install_path = self.moddir
             if c := ModList.get_by_id(current_mods, n.steamid):
                 c.remove()
-            if c := ModList.get_by_id(workshop_mods, n.steamid):
+            if self.workshop_path and (
+                c := ModList.get_by_id(workshop_mods, n.steamid)
+            ):
                 c.remove()
                 install_path = self.workshop_path
             n.install(install_path)
