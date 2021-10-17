@@ -40,7 +40,7 @@ steamcmd: /usr/bin/steamcmd /usr/share/steamcmd
 
 #### Adding .local/bin to your PATH
 
-RMM can be directly accessed with 'rmm'. In order for this to occur, you need to add "~/.local/bin" to your PATH variable. If you notice that you cannot run `rmm` after installation. Try the following:
+RMM can be directly accessed with command `rmm`. In order for this to work, you need to add `~/.local/bin` to your PATH variable, otherwise, your terminal will not find the `rmm` script. If you notice that you cannot run `rmm` after installation, try the following:
 ``` sh
 echo 'export PATH="$PATH:$HOME/.local/bin" >> ~/.bashrc
 ```
