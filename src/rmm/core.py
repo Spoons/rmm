@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 import os
-from posixpath import expanduser
 import sys
-from typing import Iterable
+from typing import Iterable, cast, Optional
 import xml.etree.ElementTree as ET
 import requests as req
 import argparse
@@ -49,23 +49,25 @@ class Mod:
         self.fp = os.path.join(new_path, str(self.steamid))
 
     @classmethod
-    def create_from_path(cls, filepath):
+    def create_from_path(cls, filepath) -> Optional[Mod]:
         try:
             tree = ET.parse(os.path.join(filepath, "About/About.xml"))
             root = tree.getroot()
             name = root.find("name").text
             author = root.find("author").text
             versions = [v.text for v in root.find("supportedVersions").findall("li")]
-            try:
-                with open(os.path.join(filepath, "About/PublishedFileId.txt")) as f:
-                    steamid = f.readline().strip()
-            except FileNotFoundError:
-                steamid = None
-
-            return Mod(name, steamid, versions, author, filepath)
-        except (NotADirectoryError, FileNotFoundError) as e:
-            print(os.path.basename(filepath) + " is not a mod. Ignoring.")
+        except FileNotFoundError as e:
+            # print(e)
+            # print(os.path.basename(filepath) + " is not a mod. Ignoring.")
             return None
+
+        try:
+            with open(os.path.join(filepath, "About/PublishedFileId.txt")) as f:
+                steamid = f.readline().strip()
+        except FileNotFoundError:
+            steamid = None
+
+        return Mod(name, steamid, versions, author, filepath)
 
 
 class ModList:
@@ -101,8 +103,8 @@ class ModList:
         return None
 
     @classmethod
-    def to_int_list(cls, mods: list[Mod]) -> list[int]:
-        return filter(None, [m.steamid for m in mods])
+    def to_int_list(cls, mods: list[Mod]) -> filter[int]:
+        return filter(None, cast(list[int], [m.steamid for m in mods]))
 
 
 class ModListFile:
@@ -241,6 +243,7 @@ class Manager:
         SteamDownloader().download(mod_list, self.cachedir)
         mods = ModList.get_mods_list_filter_by_id(self.cache_content_dir, mod_list)
         current_mods = self.get_mods_as_list()
+        workshop_mods = None
         if self.workshop_path:
             workshop_mods = self.get_mods_as_list_workshop()
         for n in mods:
@@ -254,10 +257,12 @@ class Manager:
                 c.remove()
                 install_path = self.workshop_path
 
-            if m := Mod.create_from_path(os.path.join(install_path, n.steamid)):
-                print(f"Mod with missing PublishedIdFile.txt name space collision at: {m.fp}\nRemoving directory...")
-                m.remove()
-
+            install_path_mod = os.path.join(install_path, n.steamid)
+            if os.path.isdir(install_path_mod):
+                print(
+                    f"Name space collision at: {install_path_mod}\nRemoving directory..."
+                )
+                run_sh(f"rm -rf {os.path.join(install_path_mod, n.steamid)}")
             n.install(install_path)
 
         return True
