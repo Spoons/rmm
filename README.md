@@ -7,6 +7,7 @@ RMM is an open source RimWorld mod manager designed for Unix systems. RMM uses t
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. Improvements in this process will follow. 
 
 ### Prerequisites
+
 To use RMM you need:
 
 - SteamCMD installed and in your path.
@@ -37,6 +38,19 @@ Should return a path such as below. Otherwise check to make sure steamcmd is in 
 steamcmd: /usr/bin/steamcmd /usr/share/steamcmd
 ```
 
+#### Adding .local/bin to your PATH
+
+RMM can be directly accessed with 'rmm'. In order for this to occur, you need to add "~/.local/bin" to your PATH variable. If you notice that you cannot run `rmm` after installation. Try the following:
+``` sh
+echo 'export PATH="$PATH:$HOME/.local/bin" >> ~/.bashrc
+```
+
+Alternatively, RMM can always be accessed by
+``` sh
+python -m rmm
+```
+
+
 #### Set RMM_PATH (Optional)
 
 RMM will first search for the default GOG games installation directory, steamcache folder, before falling back to an error message if this value is not set. This value takes precedence over those defaults. I recommend setting this variable.
@@ -45,7 +59,7 @@ RMM will first search for the default GOG games installation directory, steamcac
 
 ``` sh
 # Note please update this path to your actual game or mod directory
-echo 'export RMM_PATH="$HOME/GOG\ Games/RimWorld" > ~/.bashrc
+echo 'export RMM_PATH="$HOME/GOG\ Games/RimWorld" >> ~/.bashrc
 ```
 
 1. B. Alternatively, you can change this path at runtime. This is useful when managing multiple copies of the games.
@@ -57,9 +71,15 @@ rmm list
 RMM_PATH="~/PATHTOGAME/game/Mods" rmm list
 ```
 
-#### Installation
+#### Set RMM_WORKSHOP_PATH (Optional)
 
-1. Install from pypi
+RMM supports managing mods in your Steam Workshop mods directory. If RimWorld is installed into the same library as your workshop mods, RMM will automatically find your workshop mods folder and assign it automatically. If you run `rmm list` and see, 'workshop path: /workshop/filepath', then you know this is occurring. You typically will not need to set this variable.
+
+``` sh
+echo 'export RMM_WORKSHOP_PATH="$HOME/.local/share/Steam/steamapps/workshop" >> ~/.bashrc
+```
+
+### Install from PyPi (Recommended)
 
 ``` sh
 python3 -m pip install --user rmm-spoons
@@ -72,7 +92,7 @@ Clone repository and install with setuptools editable mode.
 ```
 mkdir -p ~/build
 git clone https://github.com/Spoons/rmm.git ~/build/rmm
-pip install ~/build/rmm
+pip install --user ~/build/rmm
 ```
 
 ## Useage
