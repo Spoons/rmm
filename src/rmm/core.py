@@ -146,6 +146,7 @@ class SteamDownloader:
             folder, workshop_format(mods)
         )
         run_sh(query)
+        print()
 
     @classmethod
     def download_modlist(cls, mods, path):
@@ -195,7 +196,6 @@ class Manager:
     def __init__(self, moddir, workshop_path):
         self.workshop_path = workshop_path
         self.moddir = moddir
-        # self.cachedir = "/tmp/rmm_cache"
         self.cachedir = None
 
         for dirs in os.listdir("/tmp"):
@@ -244,8 +244,8 @@ class Manager:
         if self.workshop_path:
             workshop_mods = self.get_mods_as_list_workshop()
         for n in mods:
-            print(f"Installing {n.name}")
             install_path = self.moddir
+            print(f"Installing {n.name}")
             if c := ModList.get_by_id(current_mods, n.steamid):
                 c.remove()
             if self.workshop_path and (
@@ -253,6 +253,11 @@ class Manager:
             ):
                 c.remove()
                 install_path = self.workshop_path
+
+            if m := Mod.create_from_path(os.path.join(install_path, n.steamid)):
+                print(f"Mod with missing PublishedIdFile.txt name space collision at: {m.fp}\nRemoving directory...")
+                m.remove()
+
             n.install(install_path)
 
         return True
