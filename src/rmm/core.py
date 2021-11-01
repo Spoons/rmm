@@ -12,6 +12,9 @@ from enum import Enum
 from bs4 import BeautifulSoup
 from rmm.utils.processes import execute, run_sh
 
+
+RMM_VERSION = "0.0.4"
+
 DEFAULT_GAME_PATHS = [
     "~/GOG Games/RimWorld",
     "~/.local/share/Steam/steamapps/common/RimWorld",
@@ -103,8 +106,8 @@ class ModList:
         return None
 
     @classmethod
-    def to_int_list(cls, mods: list[Mod]) -> filter[int]:
-        return filter(None, cast(list[int], [m.steamid for m in mods]))
+    def to_int_list(cls, mods: list[Mod]) -> list[int]:
+        return list(filter(None, cast(list[int], [m.steamid for m in mods])))
 
 
 class ModListFile:
@@ -217,52 +220,55 @@ class Manager:
             self.cachedir, ".steam/steamapps/workshop/content/294100/"
         )
 
-    def get_mods_as_list_both(self) -> list[Mod]:
+    def get_mods_as_list(self) -> list[Mod]:
         if (
             self.workshop_path
             and (workshop_mods := self.get_mods_as_list_workshop()) is not None
         ):
-            return self.get_mods_as_list() + workshop_mods
-        return self.get_mods_as_list()
+            return self.get_mods_as_list_native() + workshop_mods
+        return self.get_mods_as_list_native()
 
     def get_mods_as_list_workshop(self) -> list[Mod]:
         return ModList.get_mods_list_by_path(self.workshop_path)
 
-    def get_mods_as_list(self) -> list[Mod]:
+    def get_mods_as_list_native(self) -> list[Mod]:
         return ModList.get_mods_list_by_path(self.moddir)
 
     def get_mods_names(self) -> list[str]:
-        return ModList.get_mods_list_names(self.get_mods_as_list_both())
+        return ModList.get_mods_list_names(self.get_mods_as_list())
 
     def backup_mod_dir(self, tarball_fp):
         query = '(cd {}; tar -vcaf "{}" ".")'.format(self.moddir, tarball_fp)
         for line in execute(query):
             print(line, end="")
 
-    def sync_mod_list(self, mod_list: list[int]) -> bool:
+    def sync_mod_list(self, mod_list: list[int], force_native:bool = False) -> bool:
         SteamDownloader().download(mod_list, self.cachedir)
         mods = ModList.get_mods_list_filter_by_id(self.cache_content_dir, mod_list)
-        current_mods = self.get_mods_as_list()
+        print(mods)
+        current_mods = self.get_mods_as_list_native()
+        print(current_mods)
         workshop_mods = None
         if self.workshop_path:
             workshop_mods = self.get_mods_as_list_workshop()
         for n in mods:
             install_path = self.moddir
             print(f"Installing {n.name}")
-            if c := ModList.get_by_id(current_mods, n.steamid):
+            if c := (ModList.get_by_id(current_mods, n.steamid)):
                 c.remove()
             if self.workshop_path and (
-                c := ModList.get_by_id(workshop_mods, n.steamid)
+                c := (ModList.get_by_id(workshop_mods, n.steamid))
             ):
                 c.remove()
-                install_path = self.workshop_path
+                if not force_native:
+                    install_path = self.workshop_path
 
             install_path_mod = os.path.join(install_path, n.steamid)
             if os.path.isdir(install_path_mod):
                 print(
                     f"Name space collision at: {install_path_mod}\nRemoving directory..."
                 )
-                run_sh(f"rm -rf {os.path.join(install_path_mod, n.steamid)}")
+                run_sh(f"rm -rf {install_path_mod}")
             n.install(install_path)
 
         return True
@@ -274,7 +280,10 @@ class Manager:
         return self.sync_mod_list(ModListFile.read_text_modlist(modlist_fp))
 
     def update_all_mods(self):
-        self.sync_mod_list(ModList.to_int_list(self.get_mods_as_list_both()))
+        self.sync_mod_list(ModList.to_int_list(self.get_mods_as_list()))
+
+    def migrate_all_mods(self):
+        self.sync_mod_list(ModList.to_int_list(self.get_mods_as_list()), force_native=True)
 
     def remove_mod_list(self, modlist: list[Mod]) -> bool:
         for m in modlist:
@@ -286,7 +295,7 @@ class Manager:
         import tabulate
 
         return tabulate.tabulate(
-            [m.__cell__() for m in self.get_mods_as_list_both()],
+            [m.__cell__() for m in self.get_mods_as_list()],
             headers=["Name", "Author", "SteamID", "Versions"],
         )
 
@@ -395,7 +404,7 @@ The available commands are:
             "filename", help="filename to write modlist to or specify '-' for stdout"
         )
         args = parser.parse_args(sys.argv[2:])
-        mods = Manager(self.path, self.workshop_path).get_mods_as_list_both()
+        mods = Manager(self.path, self.workshop_path).get_mods_as_list()
         if args.filename != "-":
             ModListFile.write_text_modlist(mods, args.filename)
             print("Mod list written to {}.\n".format(args.filename))
@@ -488,6 +497,25 @@ The available commands are:
         Manager(self.path, self.workshop_path).update_all_mods()
         print("Package update complete.")
 
+    def migrate(self):
+        parser = argparse.ArgumentParser(
+            prog="rmm", description="Migrates all packages from Steam Workshop to native (RMM only)"
+        )
+
+        print(
+            "RMM is going to migrate your Steam Workshop mods to the game's native Mods directory. The following packages will be migrated: "
+            + ", ".join(
+                str(x) for x in Manager(self.path, self.workshop_path).get_mods_names()
+            )
+            + "\n\nWould you like to continue? [y/n]"
+        )
+
+        if input() != "y":
+            return False
+
+        Manager(self.path, self.workshop_path).migrate_all_mods()
+        print("Migration complete. To complete the migration go to https://steamcommunity.com/app/294100/workshop/\nNavigate to Browse->Subscribed Items. Then select 'Unsubscribe From All'")
+
     def backup(self):
         parser = argparse.ArgumentParser(
             prog="rmm", description="Creates a backup of the mod directory state."
@@ -508,7 +536,7 @@ The available commands are:
         search_term = " ".join(args.modname)
         search_result = [
             r
-            for r in Manager(self.path, self.workshop_path).get_mods_as_list_both()
+            for r in Manager(self.path, self.workshop_path).get_mods_as_list()
             if str.lower(search_term) in str.lower(r.name)
             or str.lower(search_term) in str.lower(r.author)
             or search_term == r.steamid
@@ -575,7 +603,7 @@ The available commands are:
 
         search_result = [
             r
-            for r in Manager(self.path, self.workshop_path).get_mods_as_list_both()
+            for r in Manager(self.path, self.workshop_path).get_mods_as_list()
             if str.lower(search_term) in str.lower(r.name)
             or str.lower(search_term) in str.lower(r.author)
             or search_term == r.steamid
@@ -592,6 +620,13 @@ The available commands are:
                     element.author,
                 )
             )
+    def version(self):
+        version_string = f"""rmm {RMM_VERSION}
+Copyright (C) 2021 Michael Ciociola
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law."""
+        print(version_string)
 
 
 def run():
