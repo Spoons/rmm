@@ -187,7 +187,9 @@ rmm -p ~/path-to-game export ~/modlist.txt
 rmm -p ~/path-to-game import ~/modlist.txt
 ```
 
-## License
+# Contributing
+If you would like to contribute your time or efforts towards the project, you are welcome to and your efforts will be appreciated. Please format any code changes through python-black.
 
+# License
 This project is licensed under the GPLv3 License - see the [LICENSE](LICENSE) file for details
 

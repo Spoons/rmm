@@ -10,8 +10,8 @@ Usage:
   rmm query [options] [<term>...]
   rmm remove [options] [<term>...]
   rmm search <term>...
-  rmm sync [options] <name>...
-  rmm update [options]
+  rmm sync [options] [sync options] <name>...
+  rmm update [options] [sync options]
   rmm -h | --help
   rmm -v | --version
 
@@ -30,6 +30,9 @@ Parameters
   term              Name, author, steamid
   file              File path
   name              Name of mod.
+
+Sync Options:
+  -f --force        Force mod directory overwrite
 
 Options:
   -p --path DIR     RimWorld path.
@@ -65,46 +68,67 @@ class InvalidSelectionException(Exception):
 
 
 class Mod:
-    def __init__(self, name, steamid, versions, author, fp, ignore=False):
+    def __init__(self, name, steamid, versions, author, path, ignore=False):
         self.name = name
         self.versions = versions
         self.author = author
         self.steamid = steamid
-        self.fp = fp
+        self.path = path
         self.ignore = ignore
 
     def __repr__(self):
         return "<Mod name:{} author:{} steamid:{} dir:{} ignore:{}>".format(
-            self.name, self.author, self.steamid, os.path.basename(self.fp), self.ignore
+            self.name,
+            self.author,
+            self.steamid,
+            os.path.basename(self.path),
+            self.ignore,
         )
 
     def __cell__(self):
         return [
             self.name,
-            self.author,
+            self.author[:30],
             self.steamid,
-            os.path.basename(self.fp),
+            os.path.basename(self.path),
             self.ignore,
         ]
+
+    def __eq__(self, other: Mod):
+        if isinstance(other, Mod):
+            if self.steamid is not None and other.steamid is not None:
+                return self.steamid == other.steamid
+            if self.name is not None and other.name is not None:
+                name_match = self.name == other.name
+
+                author_match = None
+                if self.author is not None and other.author is not None:
+                    author_match = self.author == other.author
+
+                if author_match is not None:
+                    return (name_match and author_match)
+                else:
+                    return name_match
+
+
 
     def remove(self):
         if self.ignore:
             return
-        run_sh(f"rm -rf {self.fp}")
+        run_sh(f"rm -rf {self.path}")
 
     def install(self, install_path):
         if self.ignore:
             return
         else:
-            new_path = os.path.join(install_path, str(self.steamid))
-            run_sh(f"cp -r {self.fp} {new_path}")
+            run_sh(f"cp -r {self.path} {install_path}")
 
     def update_parent_dir(self, new_path):
-        self.fp = os.path.join(new_path, str(self.steamid))
+        self.path = os.path.join(new_path, str(self.steamid))
         self.check_for_ignore()
 
     def check_for_ignore(self):
-        if os.path.isfile(os.path.join(self.fp, ".rmm_ignore")):
+        if os.path.isfile(os.path.join(self.path, ".rmm_ignore")):
             self.ignore = True
         else:
             self.ignore = False
@@ -170,6 +194,14 @@ class ModList:
             if n.steamid == steamid:
                 return n
         return None
+
+    @classmethod
+    def get_by_name(cls, mods: list[Mod], name: str):
+        for n in mods:
+            if n.name == name:
+                return n
+        return None
+
 
     @classmethod
     def to_int_list(cls, mods: list[Mod]) -> list[int]:
@@ -308,61 +340,71 @@ class Manager:
         for line in execute(query):
             print(line, end="")
 
-    def sync_mod_list(self, mod_list: list[int], force_native: bool = False) -> bool:
+
+    def sync_mod_list(self, mod_list: list[int], force_native: bool = False, force_overwrite: bool = False) -> bool:
         SteamDownloader().download(mod_list, self.cachedir)
-        mods = ModList.get_mods_list_filter_by_id(self.cache_content_dir, mod_list)
-        current_mods = self.get_mods_as_list_native()
+        install_queue_mods = ModList.get_mods_list_filter_by_id(
+            self.cache_content_dir, mod_list
+        )
+        native_mods = self.get_mods_as_list_native()
         workshop_mods = None
         if self.workshop_path:
             workshop_mods = self.get_mods_as_list_workshop()
-        for n in mods:
-            install_path = self.moddir
 
-            mod_native = None
-            if mod_native := (ModList.get_by_id(current_mods, n.steamid)):
-                if mod_native.ignore:
-                    print(f"Skipping {mod_native.name} due to ignore file")
-                    continue
-                mod_native.remove()
-            mod_workshop = None
-            if self.workshop_path and (
-                mod_workshop := (ModList.get_by_id(workshop_mods, n.steamid))
-            ):
-                if mod_workshop.ignore:
-                    print(f"Skipping {mod_workshop.name} due to ignore file")
-                    continue
-                mod_workshop.remove()
-                if not force_native:
-                    install_path = self.workshop_path
+        def remove_mod_and_get_path(
+            modlist: Optional[list[Mod]], mod: Mod, is_workshop: bool=False
+        ):
+            if not modlist:
+                return None
+            if mod in modlist:
+                ret_mod = [a for a in modlist if a == mod]
+                if len(ret_mod) == 1:
+                    ret_mod = ret_mod[0]
+                elif len(ret_mod) > 1:
+                    print("Duplicate mods found")
+                    return None
+                ret_mod = cast(Mod, ret_mod)
+                if ret_mod.steamid == None:
+                    print("Mod is missing steamid in PublishedId file. Use -f flag overwrite.")
+                if ret_mod.ignore == True:
+                    print("Ignoring mod due to .rmm_ignore file")
+                if not ret_mod.ignore and not ret_mod.steamid:
+                    ret_mod.remove()
+                if is_workshop and force_native:
+                    return None
+                return (os.path.join(self.moddir, ret_mod.path), ret_mod)
+            else:
+                return None
 
-            install_path_mod = os.path.join(install_path, n.steamid)
-            if os.path.isdir(install_path_mod) and not os.path.isfile(
-                os.path.join(install_path_mod, ".rmm_ignore")
-            ):
-                print(
-                    f"Name space collision at: {install_path_mod}\nWould you like to removal the conflicting directory? [y/n]"
-                )
+        for queue_current_mod in install_queue_mods:
+            install_path_native = remove_mod_and_get_path(
+                native_mods, queue_current_mod, is_workshop=False
+            )
+            install_path_workshop = remove_mod_and_get_path(
+                workshop_mods, queue_current_mod, is_workshop=True
+            )
 
-                s = ""
-                while True:
-                    if (s := input()) != "y" or s != "n":
-                        print("Enter [y/n]")
-                        continue
-                    break
-                if s != "y":
-                    print("Skipping {m.name}")
-                    continue
-                else:
-                    print("Removing directory...")
-                    run_sh(f"rm -rf {install_path_mod}")
+            install_tuple = install_path_native if not None else install_path_workshop
+            if install_tuple is not None:
+                install_path = install_tuple[0]
+                mod_to_replace = install_tuple[1]
+                if not install_path and mod_to_replace.steamid is not None:
+                    install_path = os.path.join(self.moddir, queue_current_mod.steamid)
+                    if (os.path.isdir(install_path) or os.path.isfile(install_path)):
+                        if force_overwrite:
+                            print(f"Removing unmatched directory \'{install_path}\' as per force (-f) flag.")
+                            run_sh(f"rm -r \"{install_path}\"")
+                        else:
+                            print(
+                                f"Folder exists without matching PublishedId file.\nSkipping {queue_current_mod.name}\nUse the -f flag to force overwrite."
+                            )
+                            continue
 
-            print(f"Installing {n.name}")
-            n.install(install_path)
+                print(f"Installing {queue_current_mod.name}")
+                queue_current_mod.install(install_path)
 
-        return True
-
-    def sync_mod(self, steamid: int) -> bool:
-        return self.sync_mod_list([steamid])
+    def sync_mod(self, steamid: int, force_overwrite=False) -> bool:
+        return self.sync_mod_list([steamid], force_overwrite=force_overwrite)
 
     def sync_mod_list_file(self, modlist_fp):
         return self.sync_mod_list(ModListFile.read_text_modlist(modlist_fp))
@@ -488,6 +530,13 @@ class CLI:
             print(f"workshop path {self.workshop_path} not found. ignoring.")
             self.workshop_path = None
 
+
+        print(arguments)
+        if arguments['--force']:
+            self.force_overwrite = True
+        else:
+            self.force_overwrite = False
+
         for command in [
             "export",
             "import",
@@ -563,7 +612,8 @@ class CLI:
             return False
 
         Manager(self.path, self.workshop_path).sync_mod(
-            results[selection][WorkshopResultsEnum.STEAMID.value]
+            results[selection][WorkshopResultsEnum.STEAMID.value],
+            force_overwrite=self.force_overwrite
         )
         print("Package installation complete.")
 
@@ -582,7 +632,7 @@ class CLI:
         if input() != "y":
             return False
 
-        Manager(self.path, self.workshop_path).update_all_mods()
+        Manager(self.path, self.workshop_path).update_all_mods(force_overwrite=self.force_overwrite)
         print("Package update complete.")
 
     def migrate(self, arguments):
