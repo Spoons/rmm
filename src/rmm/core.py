@@ -363,14 +363,12 @@ class Manager:
                 if len(ret_mod) == 1:
                     ret_mod = ret_mod[0]
                 elif len(ret_mod) > 1:
-                    print("Duplicate mods found")
-                    #TODO: fix duplicate mod detection
-                    return None
+                    print("Duplicate mods found:")
+                    for n in ret_mod:
+                        print(n.path)
+                    print("Use rmm remove to delete them")
+                    raise Exception("Duplicate mods found")
                 ret_mod = cast(Mod, ret_mod)
-                if ret_mod.steamid == None:
-                    print("Mod is missing steamid in PublishedId file. Use -f flag overwrite.")
-                if ret_mod.ignore == True:
-                    print("Ignoring mod due to .rmm_ignore file")
                 if not ret_mod.ignore and ret_mod.steamid:
                     print(f"Removing {ret_mod.name}")
                     ret_mod.remove()
@@ -393,6 +391,9 @@ class Manager:
             if install_tuple is not None:
                 install_path = install_tuple[0]
                 mod_to_replace = install_tuple[1]
+                if mod_to_replace.ignore:
+                    print(f"Skipping {queue_current_mod.name}: .rmm_ignore file")
+                    continue
                 if mod_to_replace and mod_to_replace.steamid is None and not force_overwrite:
                         print(
                             f"Skipping {queue_current_mod.name}: missing PubishedFileId.txt\n",
@@ -408,8 +409,9 @@ class Manager:
                     print(f"Removing directory \'{install_path}\' as per force (-f) flag.")
                     run_sh(f"rm -r \"{install_path}\"")
                 else:
-                    print(f"Skipping {queue_current_mod.name}: Conflicting directory: {install_path}\n",
-                        "Use the -f flag to force overwrite."
+                    print(f"Skipping {queue_current_mod.name}:",
+                    "  Conflicting directory not associated with mod: {install_path}\n",
+                    "  Use the -f flag to force overwrite."
                     )
                     continue
             print(f"Installing {queue_current_mod.name}")
@@ -630,11 +632,13 @@ class CLI:
 
     def update(self, arguments):
         print(
-            "Preparing to update following packages: "
-            + ", ".join(
-                str(x) for x in Manager(self.path, self.workshop_path).get_mods_names()
+            "\nPreparing to update following packages:\n  "
+            + "\n  ".join(
+                str(x) for x in sorted(Manager(self.path, self.workshop_path).get_mods_names())
             )
-            + "\n\nWould you like to continue? [y/n]"
+            + "\n\nThe action will overwrite any changes to the mod directory"
+            + "\nAdd a .rmm_ignore to your mod directory to exclude it frome this list."
+            + "\nWould you like to continue? [y/n]"
         )
 
         if input() != "y":
