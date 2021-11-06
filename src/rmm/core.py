@@ -411,8 +411,8 @@ class Manager:
     def sync_mod_list_file(self, modlist_fp):
         return self.sync_mod_list(ModListFile.read_text_modlist(modlist_fp))
 
-    def update_all_mods(self):
-        self.sync_mod_list(ModList.to_int_list(self.get_mods_as_list()))
+    def update_all_mods(self, force_overwrite=False):
+        self.sync_mod_list(ModList.to_int_list(self.get_mods_as_list()), force_overwrite=force_overwrite)
 
     def migrate_all_mods(self):
         self.sync_mod_list(
