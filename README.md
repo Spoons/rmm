@@ -1,17 +1,21 @@
-# RMM: Rimworld Mod Manager
+# RMM: RimWorld Mod Manager
 
 RMM is an open source RimWorld mod manager designed for Unix systems. RMM uses the SteamCMD binary to download mods. 
 
 ## Installation
 
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. Improvements in this process will follow. 
+ 
+## MOD DEVELOPERS PLEASE READ:
+
+When using `rmm update`, rmm will update all mods in your game path and will overwrite your development folder with the latest version from Steam. To prevent all destructive writes, create a `.rmm_ignore` file in your Mods directory. 
 
 ### Prerequisites
 
 To use RMM you need:
-
 - SteamCMD installed and in your path.
-- set RMM_PATH to your RimWorld mod directory.
+- [Optional] Set RMM_PATH to game path if game is installed in non default location.
+  Alternative, you can use the `-p` flag to tell RMM where RimWorld is.
 
 #### Install SteamCMD
 
@@ -53,7 +57,7 @@ python -m rmm
 
 #### Set RMM_PATH (Optional)
 
-RMM will first search for the default GOG games installation directory, steamcache folder, before falling back to an error message if this value is not set. This value takes precedence over those defaults. I recommend setting this variable.
+RMM will first search for the default GOG games installation directory, `steamcache` folder, before falling back to an error message if this value is not set. This value takes precedence over those defaults. I recommend setting this variable.
 
 1. A. Set RMM_PATH variable to the 'Mods' sub directory in your Rimworld game folder in your .bashrc or .zshrc. For example:
 
@@ -95,8 +99,44 @@ git clone https://github.com/Spoons/rmm.git ~/build/rmm
 pip install --user ~/build/rmm
 ```
 
-## Useage
+## Usage
+```
+RimWorld Mod Manager
 
+Usage:
+  rmm export [options] <file>
+  rmm import [options] <file>
+  rmm list [options]
+  rmm migrate [options]
+  rmm query [options] [<term>...]
+  rmm remove [options] [<term>...]
+  rmm search <term>...
+  rmm sync [options] <name>...
+  rmm update [options]
+  rmm -h | --help
+  rmm -v | --version
+
+Operations:
+  export            Save mod list to file.
+  list              List installed mods.
+  migrate           Remove mods from workshop and install locally.
+  query             Search installed mods.
+  remove            Remove installed mod.
+  search            Search Workshop.
+  sync              Install mod.
+
+Parameters
+  term              Name, author, steamid
+  file              File path
+  name              Name of mod.
+
+Options:
+  -p --path DIR     RimWorld path.
+  -w --workshop DIR Workshop Path.
+```
+
+
+## How To
 List installed packages:
 ``` 
 rmm list
@@ -104,12 +144,12 @@ rmm list
 
 Search workshop packages:
 ``` 
-rmm search modname
+rmm search term
 ```
 
 Search locally installed mods
 ``` 
-rmm query modname
+rmm query term
 ```
 
 Install package:
@@ -129,7 +169,7 @@ rmm export ~/modlist.txt
 
 Install mod list:
 ```
-rmm sync -f ~/modlist.txt
+rmm import ~/modlist.txt
 ```
 
 Update all packages:
@@ -142,11 +182,17 @@ Backup mod directory:
 rmm backup ~/rimworld.tar
 ```
 
+Migrate from Steam Workshop to RimWorld 'Mods' folder:
+``` 
+rmm migrate
+```
+
+
 ### Tips
 Duplicating a mod setup to a new installation:
 ``` sh
-RMM_PATH=~/path/to/oldgame/game/Mods rmm export ~/modlist.txt
-RMM_PATH=~/path/to/newgame/game/Mods rmm sync -f ~/modlist.txt
+rmm -p ~/path-to-game export ~/modlist.txt
+rmm -p ~/path-to-game import ~/modlist.txt
 ```
 
 ## License
