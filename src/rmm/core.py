@@ -364,13 +364,15 @@ class Manager:
                     ret_mod = ret_mod[0]
                 elif len(ret_mod) > 1:
                     print("Duplicate mods found")
+                    #TODO: fix duplicate mod detection
                     return None
                 ret_mod = cast(Mod, ret_mod)
                 if ret_mod.steamid == None:
                     print("Mod is missing steamid in PublishedId file. Use -f flag overwrite.")
                 if ret_mod.ignore == True:
                     print("Ignoring mod due to .rmm_ignore file")
-                if not ret_mod.ignore and not ret_mod.steamid:
+                if not ret_mod.ignore and ret_mod.steamid:
+                    print(f"Removing {ret_mod.name}")
                     ret_mod.remove()
                 if is_workshop and force_native:
                     return None
@@ -386,24 +388,32 @@ class Manager:
                 workshop_mods, queue_current_mod, is_workshop=True
             )
 
+            install_path = None
             install_tuple = install_path_native if not None else install_path_workshop
             if install_tuple is not None:
                 install_path = install_tuple[0]
                 mod_to_replace = install_tuple[1]
-                if not install_path and mod_to_replace.steamid is not None:
-                    install_path = os.path.join(self.moddir, queue_current_mod.steamid)
-                    if (os.path.isdir(install_path) or os.path.isfile(install_path)):
-                        if force_overwrite:
-                            print(f"Removing unmatched directory \'{install_path}\' as per force (-f) flag.")
-                            run_sh(f"rm -r \"{install_path}\"")
-                        else:
-                            print(
-                                f"Folder exists without matching PublishedId file.\nSkipping {queue_current_mod.name}\nUse the -f flag to force overwrite."
-                            )
-                            continue
+                if mod_to_replace and mod_to_replace.steamid is None and not force_overwrite:
+                        print(
+                            f"Skipping {queue_current_mod.name}: missing PubishedFileId.txt\n",
+                            "Use the -f flag to force overwrite."
+                        )
+                        continue
 
-                print(f"Installing {queue_current_mod.name}")
-                queue_current_mod.install(install_path)
+            if not install_path:
+                install_path = os.path.join(self.moddir, queue_current_mod.steamid)
+
+            if (os.path.isdir(install_path) or os.path.isfile(install_path)):
+                if force_overwrite:
+                    print(f"Removing directory \'{install_path}\' as per force (-f) flag.")
+                    run_sh(f"rm -r \"{install_path}\"")
+                else:
+                    print(f"Skipping {queue_current_mod.name}: Conflicting directory: {install_path}\n",
+                        "Use the -f flag to force overwrite."
+                    )
+                    continue
+            print(f"Installing {queue_current_mod.name}")
+            queue_current_mod.install(install_path)
 
     def sync_mod(self, steamid: int, force_overwrite=False) -> bool:
         return self.sync_mod_list([steamid], force_overwrite=force_overwrite)
