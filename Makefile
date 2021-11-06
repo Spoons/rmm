@@ -14,7 +14,7 @@ package: venv
 
 upload: venv dist_clean package
 	pip install twine ; \
-	python3 -m twine upload --repository testpypi dist/*
+	python3 -m twine upload dist/*
 
 install: venv
 	python3 -m pip install .
