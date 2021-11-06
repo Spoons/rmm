@@ -1,4 +1,39 @@
-#!/usr/bin/env python3
+#!/bin/python3
+"""
+RimWorld Mod Manager
+
+Usage:
+  rmm export [options] <file>
+  rmm import [options] <file>
+  rmm list [options]
+  rmm migrate [options]
+  rmm query [options] [<term>...]
+  rmm remove [options] [<term>...]
+  rmm search <term>...
+  rmm sync [options] <name>...
+  rmm update [options]
+  rmm -h | --help
+  rmm -v | --version
+
+Operations:
+  export            Save mod list to file.
+  list              List installed mods.
+  migrate           Remove mods from workshop and install locally.
+  query             Search installed mods.
+  remove            Remove installed mod.
+  search            Search Workshop.
+  sync              Install mod.
+
+Parameters
+  term              Name, author, steamid
+  file              File path
+  name              Name of mod.
+
+Options:
+  -p --path DIR     RimWorld path.
+  -w --workshop DIR Workshop Path.
+"""
+
 from __future__ import annotations
 import os
 import sys
@@ -7,6 +42,8 @@ import xml.etree.ElementTree as ET
 import requests as req
 import argparse
 import tempfile
+import pathlib
+import docopt
 
 from enum import Enum
 from bs4 import BeautifulSoup
@@ -26,30 +63,49 @@ class InvalidSelectionException(Exception):
 
 
 class Mod:
-    def __init__(self, name, steamid, versions, author, fp):
+    def __init__(self, name, steamid, versions, author, fp, ignore=False):
         self.name = name
         self.versions = versions
         self.author = author
         self.steamid = steamid
         self.fp = fp
+        self.ignore = ignore
 
     def __repr__(self):
-        return "<Mod name:{} author:{} steamid:{} versions:{}>".format(
-            self.name, self.author, self.steamid, self.versions
+        return "<Mod name:{} author:{} steamid:{} dir:{} ignore:{}>".format(
+            self.name, self.author, self.steamid, os.path.basename(self.fp), self.ignore
         )
 
     def __cell__(self):
-        return [self.name, self.author, self.steamid, self.versions]
+        return [
+            self.name,
+            self.author,
+            self.steamid,
+            os.path.basename(self.fp),
+            self.ignore,
+        ]
 
     def remove(self):
-        run_sh(f"rm -r {self.fp}")
+        if self.ignore:
+            return
+        run_sh(f"rm -rf {self.fp}")
 
-    def install(self, moddir):
-        new_path = os.path.join(moddir, str(self.steamid))
-        run_sh(f"cp -r {self.fp} {new_path}")
+    def install(self, install_path):
+        if self.ignore:
+            return
+        else:
+            new_path = os.path.join(install_path, str(self.steamid))
+            run_sh(f"cp -r {self.fp} {new_path}")
 
     def update_parent_dir(self, new_path):
         self.fp = os.path.join(new_path, str(self.steamid))
+        self.check_for_ignore()
+
+    def check_for_ignore(self):
+        if os.path.isfile(os.path.join(self.fp, ".rmm_ignore")):
+            self.ignore = True
+        else:
+            self.ignore = False
 
     @classmethod
     def create_from_path(cls, filepath) -> Optional[Mod]:
@@ -58,7 +114,12 @@ class Mod:
             root = tree.getroot()
             name = root.find("name").text
             author = root.find("author").text
-            versions = [v.text for v in root.find("supportedVersions").findall("li")]
+            try:
+                versions = [
+                    v.text for v in root.find("supportedVersions").findall("li")
+                ]
+            except AttributeError:
+                versions = None
         except FileNotFoundError as e:
             # print(e)
             # print(os.path.basename(filepath) + " is not a mod. Ignoring.")
@@ -70,7 +131,10 @@ class Mod:
         except FileNotFoundError:
             steamid = None
 
-        return Mod(name, steamid, versions, author, filepath)
+        ignore = False
+        if os.path.isfile(os.path.join(filepath, ".rmm_ignore")):
+            ignore = True
+        return Mod(name, steamid, versions, author, filepath, ignore=ignore)
 
 
 class ModList:
@@ -242,33 +306,55 @@ class Manager:
         for line in execute(query):
             print(line, end="")
 
-    def sync_mod_list(self, mod_list: list[int], force_native:bool = False) -> bool:
+    def sync_mod_list(self, mod_list: list[int], force_native: bool = False) -> bool:
         SteamDownloader().download(mod_list, self.cachedir)
         mods = ModList.get_mods_list_filter_by_id(self.cache_content_dir, mod_list)
-        print(mods)
         current_mods = self.get_mods_as_list_native()
-        print(current_mods)
         workshop_mods = None
         if self.workshop_path:
             workshop_mods = self.get_mods_as_list_workshop()
         for n in mods:
             install_path = self.moddir
-            print(f"Installing {n.name}")
-            if c := (ModList.get_by_id(current_mods, n.steamid)):
-                c.remove()
+
+            mod_native = None
+            if mod_native := (ModList.get_by_id(current_mods, n.steamid)):
+                if mod_native.ignore:
+                    print(f"Skipping {mod_native.name} due to ignore file")
+                    continue
+                mod_native.remove()
+            mod_workshop = None
             if self.workshop_path and (
-                c := (ModList.get_by_id(workshop_mods, n.steamid))
+                mod_workshop := (ModList.get_by_id(workshop_mods, n.steamid))
             ):
-                c.remove()
+                if mod_workshop.ignore:
+                    print(f"Skipping {mod_workshop.name} due to ignore file")
+                    continue
+                mod_workshop.remove()
                 if not force_native:
                     install_path = self.workshop_path
 
             install_path_mod = os.path.join(install_path, n.steamid)
-            if os.path.isdir(install_path_mod):
+            if os.path.isdir(install_path_mod) and not os.path.isfile(
+                os.path.join(install_path_mod, ".rmm_ignore")
+            ):
                 print(
-                    f"Name space collision at: {install_path_mod}\nRemoving directory..."
+                    f"Name space collision at: {install_path_mod}\nWould you like to removal the conflicting directory? [y/n]"
                 )
-                run_sh(f"rm -rf {install_path_mod}")
+
+                s = ""
+                while True:
+                    if (s := input()) != "y" or s != "n":
+                        print("Enter [y/n]")
+                        continue
+                    break
+                if s != "y":
+                    print("Skipping {m.name}")
+                    continue
+                else:
+                    print("Removing directory...")
+                    run_sh(f"rm -rf {install_path_mod}")
+
+            print(f"Installing {n.name}")
             n.install(install_path)
 
         return True
@@ -283,7 +369,9 @@ class Manager:
         self.sync_mod_list(ModList.to_int_list(self.get_mods_as_list()))
 
     def migrate_all_mods(self):
-        self.sync_mod_list(ModList.to_int_list(self.get_mods_as_list()), force_native=True)
+        self.sync_mod_list(
+            ModList.to_int_list(self.get_mods_as_list()), force_native=True
+        )
 
     def remove_mod_list(self, modlist: list[Mod]) -> bool:
         for m in modlist:
@@ -296,193 +384,191 @@ class Manager:
 
         return tabulate.tabulate(
             [m.__cell__() for m in self.get_mods_as_list()],
-            headers=["Name", "Author", "SteamID", "Versions"],
+            headers=["Name", "Author", "SteamID", "Dir", "Ignored"],
         )
 
 
 class CLI:
     def __init__(self):
-        parser = argparse.ArgumentParser(
-            prog="rmm",
-            description="Rimworld Mod Manager (RMM)",
-            usage="""rmm <command> [<args>]
-The available commands are:
-    backup      Creates an archive of the package library
-    export      Saves package library state to a file
-    list        List installed packages
-    remove      Removes a package or modlist
-    search      Searches the workshop for mod
-    sync        Installs a package or modlist
-    update      Update all packages
-    query       Search for a locally installed mod
-    
-""",
-        )
-        parser.add_argument("command", help="Subcommand to run")
-        # parse_args defaults to [1:] for args, but you need to
-        # exclude the rest of the args too, or validation will fail
-        args = parser.parse_args(sys.argv[1:2])
+        self.path = None
+        self.workshop_path = None
 
         try:
-            self.path = os.path.expanduser(os.environ["RMM_PATH"])
-        except KeyError as err:
-            print("RimWorld mod directory not set.\n" "Trying default directories...")
+            arguments = docopt.docopt(__doc__, version="RMM 0.0.4", more_magic=True)
+        except docopt.DocoptExit:
+            arguments = {}
+            print(__doc__)
+            if len(sys.argv) > 1:
+                print("Invalid syntax. You may have too many or too little argument.")
+                sys.exit(1)
+            if len(sys.argv) > 0:
+                sys.exit(0)
+
+        def check_default_paths():
             for path in DEFAULT_GAME_PATHS:
                 p = os.path.expanduser((os.path.join(path, "game", "Mods")))
                 if os.path.isdir(p):
-                    self.path = p
-        finally:
-            if not hasattr(self, "path"):
-                print(
-                    "Game not found.\n"
-                    'Please set "RMM_PATH" variable to the RimWorld mod directory in your environment.\n'
-                    '\nexport RMM_PATH="~/games/rimworld"\nrmm list\n or \n'
-                    'RMM_PATH="~/games/rimworld" rmm list'
-                )
-                exit(1)
+                    return p
+            return None
 
-        if not os.path.basename(self.path) == "Mods":
-            for root, dirs, files in os.walk(self.path):
-                if os.path.basename(root) == "game" and "Mods" in dirs:
-                    # TODO read gameinfo file to ensure is actually rimworld
-                    self.path = os.path.join(root, "Mods")
-                    break
+        def find_game(path):
+            if not os.path.basename(path) == "Mods":
+                for root, dirs, files in os.walk(path):
+                    if os.path.basename(root) == "game" and "Mods" in dirs:
+                        # TODO read gameinfo file to ensure is actually rimworld
+                        return os.path.join(root, "Mods")
+            return None
+
+        if arguments["--path"]:
+            self.path = arguments["--path"]
+            self.path = find_game(self.path)
+
+        if not self.path:
+            try:
+                self.path = os.path.expanduser(os.environ["RMM_PATH"])
+                self.path = find_game(self.path)
+            except KeyError:
+                self.path = None
+
+        if not self.path:
+            print("RimWorld mod directory not set.\n" "Trying default directories...")
+            self.path = check_default_paths()
+
+        if not self.path:
+            print(
+                "Game not found.\n"
+                'Please set "RMM_PATH" variable to the RimWorld mod directory in your environment.\n'
+                '\nexport RMM_PATH="~/games/rimworld"\nrmm list\n or \n'
+                'RMM_PATH="~/games/rimworld" rmm list'
+            )
+            exit(1)
 
         print("rimworld path: {}".format(self.path))
 
-        try:
-            self.workshop_path = os.path.expanduser(os.environ["RMM_WORKSHOP_PATH"])
-            if (
-                not os.path.basename(self.workshop_path) == "294100"
-                and "Steam" in self.workshop_path
-            ):
-                self.workshop_path = os.path.join(
-                    "".join(self.workshop_path.partition("Steam/")[0:2]),
-                    "steamapps/workshop/content/294100",
-                )
+        def find_workshop(path):
+            if not os.path.basename(path) == "294100" and "Steam" in path:
+                if os.path.isdir(
+                    s := os.path.join(
+                        "".join(path.partition("Steam/")[0:2]),
+                        "steamapps/workshop/content/294100",
+                    )
+                ):
+                    return path
+                return None
 
-            if not os.path.isdir(self.workshop_path):
-                print(f"workshop path {self.workshop_path} not found. ignoring.")
-                self.workshop_path = None
+        def find_workshop_from_game_path(path):
+            if "/Steam/steamapps/common" in path:
+                if os.path.isdir(
+                    s := os.path.join(
+                        "".join(path.partition("/Steam/steamapps")[0:2]),
+                        "workshop/content/294100",
+                    )
+                ):
+                    return s
+            return None
 
-        except KeyError as err:
-            if "/Steam/steamapps/common" in self.path:
-                self.workshop_path = os.path.join(
-                    "".join(self.path.partition("/Steam/steamapps")[0:2]),
-                    "workshop/content/294100",
-                )
-            else:
+        if arguments["--workshop"]:
+            self.workshop_path = arguments["--workshop"]
+        else:
+            try:
+                self.workshop_path = os.path.expanduser(os.environ["RMM_WORKSHOP_PATH"])
+            except KeyError as err:
                 self.workshop_path = None
 
         if self.workshop_path:
+            self.workshop_path = find_workshop(self.workshop_path)
+        else:
+            self.workshop_path = find_workshop_from_game_path(self.path)
+
+        if self.workshop_path:
             print(f"workshop path: {self.workshop_path}\n")
+        else:
+            print(f"workshop path {self.workshop_path} not found. ignoring.")
+            self.workshop_path = None
 
-        if not hasattr(self, args.command):
-            print("Unrecognized command")
-            parser.print_help()
-            exit(2)
-        # use dispatch pattern to invoke method with same name
-        getattr(self, args.command)()
+        for command in [
+            "export",
+            "import",
+            "list",
+            "migrate",
+            "query",
+            "remove",
+            "search",
+            "sync",
+            "update",
+        ]:
+            if arguments[command] == True:
+                getattr(self, command)(arguments)
 
-    def search(self):
-        parser = argparse.ArgumentParser(
-            prog="rmm", description="searches the workshop for specified modname"
-        )
-        parser.add_argument("modname", help="name of mod", nargs="*")
-        args = parser.parse_args(sys.argv[2:])
-        search_term = " ".join(args.modname)
-        results = WorkshopWebScraper.workshop_search(search_term)
+    def search(self, arguments):
+        results = WorkshopWebScraper.workshop_search(" ".join(arguments["<term>"]))
         from tabulate import tabulate
 
         print(tabulate(reversed(results)))
 
-    def export(self):
-        parser = argparse.ArgumentParser(
-            prog="rmm", description="Saves modlist to file."
-        )
-        parser.add_argument(
-            "filename", help="filename to write modlist to or specify '-' for stdout"
-        )
-        args = parser.parse_args(sys.argv[2:])
+    def export(self, arguments):
         mods = Manager(self.path, self.workshop_path).get_mods_as_list()
-        if args.filename != "-":
-            ModListFile.write_text_modlist(mods, args.filename)
-            print("Mod list written to {}.\n".format(args.filename))
+        if arguments["<file>"] != "-":
+            ModListFile.write_text_modlist(mods, arguments["<file>"])
+            print("Mod list written to {}.\n".format(arguments["<file>"]))
         else:
             print(ModListFile.export_text_modlist(mods))
 
-    def list(self):
+    def list(self, arguments):
         if not (s := Manager(self.path, self.workshop_path).get_mod_table()):
             print("No mods installed. Add them using the 'sync' command.")
         else:
             print(s)
 
-    def install(self):
-        self.sync()
+    def _import(self, arguments):
+        file = arguments["<file>"]
+        Manager(self.path, self.workshop_path).sync_mod_list_file(file)
 
-    def sync(self):
-        parser = argparse.ArgumentParser(
-            prog="rmm", description="Syncs a mod from the workshop"
-        )
-        parser.add_argument("modname", help="mod or modlist to sync", nargs="*")
-        parser.add_argument(
-            "-f",
-            "--file",
-            action="store_true",
-            help="specify modlist instead of modname",
-        )
-        args = parser.parse_args(sys.argv[2:])
-        search_term = " ".join(args.modname)
+    def sync(self, arguments):
+        search_term = " ".join(arguments["<name>"])
 
-        if args.file:
-            Manager(self.path, self.workshop_path).sync_mod_list_file(search_term)
-
-        if not args.file:
-            results = WorkshopWebScraper.workshop_search(search_term)
-            for n, element in enumerate(reversed(results)):
-                n = abs(n - len(results))
-                print(
-                    "{}. {} {}".format(
-                        n,
-                        element[WorkshopResultsEnum.TITLE.value],
-                        element[WorkshopResultsEnum.AUTHOR.value],
-                    )
-                )
-                print("Packages to install (eg: 1 2 3, 1-3 or ^4)")
-
-            while True:
-                try:
-                    selection = int(input()) - 1
-                    if selection >= len(results) or selection < 0:
-                        raise InvalidSelectionException("Out of bounds")
-                    break
-                except ValueError:
-                    print("Must enter valid integer")
-                except InvalidSelectionException:
-                    print("Selection out of bounds.")
-
+        results = WorkshopWebScraper.workshop_search(search_term)
+        for n, element in enumerate(reversed(results)):
+            n = abs(n - len(results))
             print(
-                "Package(s): {} will be installed. Continue? [y/n] ".format(
-                    results[selection][WorkshopResultsEnum.TITLE.value]
-                ),
-                end="",
+                "{}. {} {}".format(
+                    n,
+                    element[WorkshopResultsEnum.TITLE.value],
+                    element[WorkshopResultsEnum.AUTHOR.value],
+                )
             )
+        print("Packages to install (eg: 1 2 3, 1-3 or ^4)")
 
-            if input() != "y":
-                return False
+        while True:
+            try:
+                selection = int(input()) - 1
+                if selection >= len(results) or selection < 0:
+                    raise InvalidSelectionException("Out of bounds")
+                break
+            except ValueError:
+                print("Must enter valid integer")
+            except InvalidSelectionException:
+                print("Selection out of bounds.")
 
-            Manager(self.path, self.workshop_path).sync_mod(
-                results[selection][WorkshopResultsEnum.STEAMID.value]
-            )
+        print(
+            "Package(s): {} will be installed. Continue? [y/n] ".format(
+                results[selection][WorkshopResultsEnum.TITLE.value]
+            ),
+            end="",
+        )
+
+        if input() != "y":
+            return False
+
+        Manager(self.path, self.workshop_path).sync_mod(
+            results[selection][WorkshopResultsEnum.STEAMID.value]
+        )
         print("Package installation complete.")
 
-    def update(self):
-        parser = argparse.ArgumentParser(
-            prog="rmm", description="Updates all mods in directory"
-        )
-        parser.add_argument("filename", nargs="?", const=1, default=self.path)
-        args = parser.parse_args(sys.argv[2:])
+    def install(self, arguments):
+        self.sync(arguments)
 
+    def update(self, arguments):
         print(
             "Preparing to update following packages: "
             + ", ".join(
@@ -497,11 +583,7 @@ The available commands are:
         Manager(self.path, self.workshop_path).update_all_mods()
         print("Package update complete.")
 
-    def migrate(self):
-        parser = argparse.ArgumentParser(
-            prog="rmm", description="Migrates all packages from Steam Workshop to native (RMM only)"
-        )
-
+    def migrate(self, arguments):
         print(
             "RMM is going to migrate your Steam Workshop mods to the game's native Mods directory. The following packages will be migrated: "
             + ", ".join(
@@ -514,26 +596,17 @@ The available commands are:
             return False
 
         Manager(self.path, self.workshop_path).migrate_all_mods()
-        print("Migration complete. To complete the migration go to https://steamcommunity.com/app/294100/workshop/\nNavigate to Browse->Subscribed Items. Then select 'Unsubscribe From All'")
-
-    def backup(self):
-        parser = argparse.ArgumentParser(
-            prog="rmm", description="Creates a backup of the mod directory state."
+        print(
+            "Migration complete. To complete the migration go to https://steamcommunity.com/app/294100/workshop/\nNavigate to Browse->Subscribed Items. Then select 'Unsubscribe From All'"
         )
-        parser.add_argument(
-            "filename", nargs="?", const=1, default="/tmp/rimworld.tar.bz2"
-        )
-        args = parser.parse_args(sys.argv[2:])
 
-        print("Backing up mod directory to '{}.\n".format(args.filename))
-        Manager(self.path, self.workshop_path).backup_mod_dir(args.filename)
-        print("Backup completed to " + args.filename + ".")
+    def backup(self, arguments):
+        print("Backing up mod directory to '{}.\n".format(arguments["<file>"]))
+        Manager(self.path, self.workshop_path).backup_mod_dir(arguments["<file>"])
+        print("Backup completed to " + arguments["<file>"])
 
-    def remove(self):
-        parser = argparse.ArgumentParser(prog="rmm", description="remove a mod")
-        parser.add_argument("modname", help="name of mod", nargs="*")
-        args = parser.parse_args(sys.argv[2:])
-        search_term = " ".join(args.modname)
+    def remove(self, arguments):
+        search_term = " ".join(arguments["<term>"])
         search_result = [
             r
             for r in Manager(self.path, self.workshop_path).get_mods_as_list()
@@ -593,13 +666,8 @@ The available commands are:
 
         Manager(self.path, self.workshop_path).remove_mod_list(remove_queue)
 
-    def query(self):
-        parser = argparse.ArgumentParser(
-            prog="rmm", description="query locally installed mods"
-        )
-        parser.add_argument("modname", help="name of mod", nargs="*")
-        args = parser.parse_args(sys.argv[2:])
-        search_term = " ".join(args.modname)
+    def query(self, arguments):
+        search_term = " ".join(arguments["<term>"])
 
         search_result = [
             r
@@ -620,6 +688,7 @@ The available commands are:
                     element.author,
                 )
             )
+
     def version(self):
         version_string = f"""rmm {RMM_VERSION}
 Copyright (C) 2021 Michael Ciociola
