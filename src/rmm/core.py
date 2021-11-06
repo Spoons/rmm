@@ -17,12 +17,14 @@ Usage:
 
 Operations:
   export            Save mod list to file.
+  import            Install a mod list from a file.
   list              List installed mods.
   migrate           Remove mods from workshop and install locally.
   query             Search installed mods.
   remove            Remove installed mod.
   search            Search Workshop.
-  sync              Install mod.
+  sync              Install or update a mod.
+  update            Update all mods from Steam.
 
 Parameters
   term              Name, author, steamid
