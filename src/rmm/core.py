@@ -3,6 +3,7 @@
 RimWorld Mod Manager
 
 Usage:
+  rmm backup <file>
   rmm export [options] <file>
   rmm import [options] <file>
   rmm list [options]
@@ -16,6 +17,8 @@ Usage:
   rmm -v | --version
 
 Operations:
+  backup            Backups your mod directory to a tar, gzip,
+                      bz2, or xz archive. Type inferred by name.
   export            Save mod list to file.
   import            Install a mod list from a file.
   list              List installed mods.
@@ -457,7 +460,13 @@ class CLI:
         self.workshop_path = None
 
         try:
+<<<<<<< HEAD
             arguments = docopt.docopt(__doc__, version=f"RMM {__version__}")
+||||||| parent of aa2219e (feat: migrate command copies instead of sync)
+            arguments = docopt.docopt(__doc__, version="RMM 0.0.4", more_magic=True)
+=======
+            arguments = docopt.docopt(__doc__, version="RMM 0.0.6", more_magic=True)
+>>>>>>> aa2219e (feat: migrate command copies instead of sync)
         except docopt.DocoptExit:
             arguments = {}
             print(__doc__)
@@ -672,7 +681,10 @@ class CLI:
         if input() != "y":
             return False
 
-        Manager(self.path, self.workshop_path).migrate_all_mods()
+        if not self.workshop_path:
+            print("Workshop path not found. Please specify with -w /path/to/workshop")
+
+        run_sh(f"find \"{self.workshop_path}\" -mindepth 1 -maxdepth 1 -type d -print0 | xargs -0 cp -rv -t \"{self.path}\" >&2")
         print(
             "Migration complete. To complete the migration go to https://steamcommunity.com/app/294100/workshop/\nNavigate to Browse->Subscribed Items. Then select 'Unsubscribe From All'"
         )
