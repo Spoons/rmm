@@ -56,7 +56,7 @@ from bs4 import BeautifulSoup
 from rmm.utils.processes import execute, run_sh
 
 
-RMM_VERSION = "0.0.5-1"
+RMM_VERSION = "0.0.6"
 
 DEFAULT_GAME_PATHS = [
     "~/GOG Games/RimWorld",
