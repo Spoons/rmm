@@ -2,15 +2,11 @@
 
 RMM is an open source RimWorld mod manager designed for Unix systems. RMM uses the SteamCMD binary to download mods. 
 
-## Installation
-
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. Improvements in this process will follow. 
- 
 ## MOD DEVELOPERS PLEASE READ:
 
 When using `rmm update`, rmm will update all mods in your game path and will overwrite your development folder with the latest version from Steam. To prevent all destructive writes, create a `.rmm_ignore` file in your Mods directory. 
 
-### Prerequisites
+## Prerequisites
 
 To use RMM you need:
 - SteamCMD installed and in your path.
@@ -57,42 +53,39 @@ python -m rmm
 
 #### Set RMM_PATH (Optional)
 
-RMM will first search for the default GOG games installation directory, `steamcache` folder, before falling back to an error message if this value is not set. This value takes precedence over those defaults. I recommend setting this variable.
+If RimWorld is installed a directory other than the default ones, you should set the RMM_PATH variable to your game directory for convenience.
 
-1. A. Set RMM_PATH variable to the 'Mods' sub directory in your Rimworld game folder in your .bashrc or .zshrc. For example:
-
+Set it permanently in your `bashrc` or `zshrc` files:
 ``` sh
 # Note please update this path to your actual game or mod directory
-echo 'export RMM_PATH="$HOME/GOG\ Games/RimWorld" >> ~/.bashrc
+echo 'export RMM_PATH="$HOME/your/game/path" >> ~/.bashrc
 ```
 
-1. B. Alternatively, you can change this path at runtime. This is useful when managing multiple copies of the games.
-
+Temporarily set it during your shell session:
 ``` sh
 export RMM_PATH="~/PATHTOGAME/game/Mods"
-rmm list
-# or you can use
-RMM_PATH="~/PATHTOGAME/game/Mods" rmm list
 ```
 
 #### Set RMM_WORKSHOP_PATH (Optional)
 
-RMM supports managing mods in your Steam Workshop mods directory. If RimWorld is installed into the same library as your workshop mods, RMM will automatically find your workshop mods folder and assign it automatically. If you run `rmm list` and see, 'workshop path: /workshop/filepath', then you know this is occurring. You typically will not need to set this variable.
+You probably do not need to set this variable.
+
+RMM supports managing mods in your Steam Workshop mods directory. If RimWorld is installed into the same library as your Workshop mods, as would be the case for most people, RMM will find your workshop directory. Otherwise, you can set this value as per the example below:
 
 ``` sh
 echo 'export RMM_WORKSHOP_PATH="$HOME/.local/share/Steam/steamapps/workshop" >> ~/.bashrc
 ```
 
-### Install from PyPi (Recommended)
+## Installng RMM from PyPi (Recommended)
 
 ``` sh
 python3 -m pip install --user rmm-spoons
 ```
 
 
-### Installation for Development
+## Installation for Development (Developers)
 
-Clone repository and install with setuptools editable mode.
+Clone repository and install with pip.
 ```
 mkdir -p ~/build
 git clone https://github.com/Spoons/rmm.git ~/build/rmm
@@ -134,7 +127,6 @@ Options:
   -p --path DIR     RimWorld path.
   -w --workshop DIR Workshop Path.
 ```
-
 
 ## How To
 List installed packages:
