@@ -44,18 +44,19 @@ import os
 import sys
 from typing import Iterable, cast, Optional
 import xml.etree.ElementTree as ET
-import requests as req
 import argparse
 import tempfile
 import pathlib
 import docopt
+import urllib.request
+from multiprocessing import Pool
 
 from enum import Enum
 from bs4 import BeautifulSoup
 from rmm.utils.processes import execute, run_sh
 
 
-RMM_VERSION = "0.0.4"
+RMM_VERSION = "0.0.5-1"
 
 DEFAULT_GAME_PATHS = [
     "~/GOG Games/RimWorld",
@@ -146,9 +147,7 @@ class Mod:
                 ]
             except AttributeError:
                 versions = None
-        except FileNotFoundError as e:
-            # print(e)
-            # print(os.path.basename(filepath) + " is not a mod. Ignoring.")
+        except (FileNotFoundError, NotADirectoryError) as e:
             return None
 
         try:
@@ -166,15 +165,13 @@ class Mod:
 class ModList:
     @classmethod
     def _get_mods_list(cls, path: str, f: Iterable) -> list[Mod]:
-        return list(
-            filter(
-                None,
-                map(
-                    lambda d: Mod.create_from_path(os.path.join(path, d)),
-                    f,
-                ),
-            )
-        )
+        paths = [os.path.join(path, d) for d in f]
+        with Pool(16) as p:
+                mods = filter(None, p.map(
+                Mod.create_from_path,
+                paths,
+            ))
+        return list(mods)
 
     @classmethod
     def get_mods_list_by_path(cls, path: str) -> list[Mod]:
@@ -264,6 +261,9 @@ class WorkshopResultsEnum(Enum):
 
 
 class WorkshopWebScraper:
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.81 Safari/537.36'
+    }
     @classmethod
     def scrape_update_date(cls, mod):
         resp = req.get(
@@ -277,12 +277,14 @@ class WorkshopWebScraper:
     @classmethod
     def workshop_search(cls, name):
         name = name.replace(" ", "+")
-        resp = req.get(
+        request = urllib.request.Request(
             "https://steamcommunity.com/workshop/browse/?appid=294100&searchtext={}".format(
                 name
-            )
+            ),
+            headers=WorkshopWebScraper.headers
         )
-        soup = BeautifulSoup(resp.content, "html.parser")
+        resp = urllib.request.urlopen(request)
+        soup = BeautifulSoup(resp, "html.parser")
         items = soup.find_all("div", class_="workshopItem")
         results = []
         import re
@@ -458,9 +460,8 @@ class CLI:
         def find_game(path):
             if not os.path.basename(path) == "Mods":
                 for root, dirs, files in os.walk(path):
-                    if os.path.basename(root) == "game" and "Mods" in dirs:
-                        # TODO read gameinfo file to ensure is actually rimworld
-                        return os.path.join(root, "Mods")
+                    if os.path.basename(root) == "Mods" and os.path.isfile(os.path.join(root,"..", "Version.txt")):
+                        return os.path.join(root)
             return None
 
         if arguments["--path"]:
@@ -474,17 +475,15 @@ class CLI:
             except KeyError:
                 self.path = None
 
+        if not self.path and (arguments["--path"] or "RMM_PATH" in os.environ):
+            print("The specified RimWorld path does not appear to contain RimWorld and a Mods folder.")
+
         if not self.path:
-            print("RimWorld mod directory not set.\n" "Trying default directories...")
+            print("Trying default directories...")
             self.path = check_default_paths()
 
         if not self.path:
-            print(
-                "Game not found.\n"
-                'Please set "RMM_PATH" variable to the RimWorld mod directory in your environment.\n'
-                '\nexport RMM_PATH="~/games/rimworld"\nrmm list\n or \n'
-                'RMM_PATH="~/games/rimworld" rmm list'
-            )
+            print("Could not find RimWorld. Exiting...")
             exit(1)
 
         print("rimworld path: {}".format(self.path))
@@ -501,10 +500,10 @@ class CLI:
                 return None
 
         def find_workshop_from_game_path(path):
-            if "/Steam/steamapps/common" in path:
+            if "/steamapps/common" in path:
                 if os.path.isdir(
                     s := os.path.join(
-                        "".join(path.partition("/Steam/steamapps")[0:2]),
+                        "".join(path.partition("/steamapps")[0:2]),
                         "workshop/content/294100",
                     )
                 ):
@@ -531,7 +530,6 @@ class CLI:
             self.workshop_path = None
 
 
-        print(arguments)
         if arguments['--force']:
             self.force_overwrite = True
         else:
