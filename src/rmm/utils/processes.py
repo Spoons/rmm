@@ -22,5 +22,5 @@ def execute(cmd):
                 break
 
 
-def run_sh(cmd):
-    subprocess.check_output(cmd, text=True, shell=True).strip()
+def run_sh(cmd: str) -> str:
+    return subprocess.check_output(cmd, text=True, shell=True).strip()
