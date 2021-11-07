@@ -115,11 +115,9 @@ class Mod:
                     author_match = self.author == other.author
 
                 if author_match is not None:
-                    return (name_match and author_match)
+                    return name_match and author_match
                 else:
                     return name_match
-
-
 
     def remove(self):
         if self.ignore:
@@ -175,10 +173,13 @@ class ModList:
     def _get_mods_list(cls, path: str, f: Iterable) -> list[Mod]:
         paths = [os.path.join(path, d) for d in f]
         with Pool(16) as p:
-                mods = filter(None, p.map(
-                Mod.create_from_path,
-                paths,
-            ))
+            mods = filter(
+                None,
+                p.map(
+                    Mod.create_from_path,
+                    paths,
+                ),
+            )
         return list(mods)
 
     @classmethod
@@ -206,7 +207,6 @@ class ModList:
             if n.name == name:
                 return n
         return None
-
 
     @classmethod
     def to_int_list(cls, mods: list[Mod]) -> list[int]:
@@ -270,8 +270,9 @@ class WorkshopResultsEnum(Enum):
 
 class WorkshopWebScraper:
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.81 Safari/537.36'
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.81 Safari/537.36"
     }
+
     @classmethod
     def scrape_update_date(cls, mod):
         resp = req.get(
@@ -289,7 +290,7 @@ class WorkshopWebScraper:
             "https://steamcommunity.com/workshop/browse/?appid=294100&searchtext={}".format(
                 name
             ),
-            headers=WorkshopWebScraper.headers
+            headers=WorkshopWebScraper.headers,
         )
         resp = urllib.request.urlopen(request)
         soup = BeautifulSoup(resp, "html.parser")
@@ -350,8 +351,12 @@ class Manager:
         for line in execute(query):
             print(line, end="")
 
-
-    def sync_mod_list(self, mod_list: list[int], force_native: bool = False, force_overwrite: bool = False) -> bool:
+    def sync_mod_list(
+        self,
+        mod_list: list[int],
+        force_native: bool = False,
+        force_overwrite: bool = False,
+    ) -> bool:
         SteamDownloader().download(mod_list, self.cachedir)
         install_queue_mods = ModList.get_mods_list_filter_by_id(
             self.cache_content_dir, mod_list
@@ -362,7 +367,7 @@ class Manager:
             workshop_mods = self.get_mods_as_list_workshop()
 
         def remove_mod_and_get_path(
-            modlist: Optional[list[Mod]], mod: Mod, is_workshop: bool=False
+            modlist: Optional[list[Mod]], mod: Mod, is_workshop: bool = False
         ):
             if not modlist:
                 return None
@@ -402,24 +407,31 @@ class Manager:
                 if mod_to_replace.ignore:
                     print(f"Skipping {queue_current_mod.name}: .rmm_ignore file")
                     continue
-                if mod_to_replace and mod_to_replace.steamid is None and not force_overwrite:
-                        print(
-                            f"Skipping {queue_current_mod.name}: missing PubishedFileId.txt\n",
-                            "Use the -f flag to force overwrite."
-                        )
-                        continue
+                if (
+                    mod_to_replace
+                    and mod_to_replace.steamid is None
+                    and not force_overwrite
+                ):
+                    print(
+                        f"Skipping {queue_current_mod.name}: missing PubishedFileId.txt\n",
+                        "Use the -f flag to force overwrite.",
+                    )
+                    continue
 
             if not install_path:
                 install_path = os.path.join(self.moddir, queue_current_mod.steamid)
 
-            if (os.path.isdir(install_path) or os.path.isfile(install_path)):
+            if os.path.isdir(install_path) or os.path.isfile(install_path):
                 if force_overwrite:
-                    print(f"Removing directory \'{install_path}\' as per force (-f) flag.")
-                    run_sh(f"rm -r \"{install_path}\"")
+                    print(
+                        f"Removing directory '{install_path}' as per force (-f) flag."
+                    )
+                    run_sh(f'rm -r "{install_path}"')
                 else:
-                    print(f"Skipping {queue_current_mod.name}:",
-                    "  Conflicting directory not associated with mod: {install_path}\n",
-                    "  Use the -f flag to force overwrite."
+                    print(
+                        f"Skipping {queue_current_mod.name}:",
+                        "  Conflicting directory not associated with mod: {install_path}\n",
+                        "  Use the -f flag to force overwrite.",
                     )
                     continue
             print(f"Installing {queue_current_mod.name}")
@@ -432,7 +444,10 @@ class Manager:
         return self.sync_mod_list(ModListFile.read_text_modlist(modlist_fp))
 
     def update_all_mods(self, force_overwrite=False):
-        self.sync_mod_list(ModList.to_int_list(self.get_mods_as_list()), force_overwrite=force_overwrite)
+        self.sync_mod_list(
+            ModList.to_int_list(self.get_mods_as_list()),
+            force_overwrite=force_overwrite,
+        )
 
     def migrate_all_mods(self):
         self.sync_mod_list(
@@ -490,7 +505,9 @@ class CLI:
         def find_game(path):
             if not os.path.basename(path) == "Mods":
                 for root, dirs, files in os.walk(path):
-                    if os.path.basename(root) == "Mods" and os.path.isfile(os.path.join(root,"..", "Version.txt")):
+                    if os.path.basename(root) == "Mods" and os.path.isfile(
+                        os.path.join(root, "..", "Version.txt")
+                    ):
                         return os.path.join(root)
             return None
 
@@ -506,7 +523,9 @@ class CLI:
                 self.path = None
 
         if not self.path and (arguments["--path"] or "RMM_PATH" in os.environ):
-            print("The specified RimWorld path does not appear to contain RimWorld and a Mods folder.")
+            print(
+                "The specified RimWorld path does not appear to contain RimWorld and a Mods folder."
+            )
 
         if not self.path:
             print("Trying default directories...")
@@ -560,8 +579,7 @@ class CLI:
             print(f"workshop path {self.workshop_path} not found. ignoring.")
             self.workshop_path = None
 
-
-        if arguments['--force']:
+        if arguments["--force"]:
             self.force_overwrite = True
         else:
             self.force_overwrite = False
@@ -645,7 +663,7 @@ class CLI:
 
         Manager(self.path, self.workshop_path).sync_mod(
             results[selection][WorkshopResultsEnum.STEAMID.value],
-            force_overwrite=self.force_overwrite
+            force_overwrite=self.force_overwrite,
         )
         print("Package installation complete.")
 
@@ -656,7 +674,8 @@ class CLI:
         print(
             "\nPreparing to update following packages:\n  "
             + "\n  ".join(
-                str(x) for x in sorted(Manager(self.path, self.workshop_path).get_mods_names())
+                str(x)
+                for x in sorted(Manager(self.path, self.workshop_path).get_mods_names())
             )
             + "\n\nThe action will overwrite any changes to the mod directory"
             + "\nAdd a .rmm_ignore to your mod directory to exclude it frome this list."
@@ -666,7 +685,9 @@ class CLI:
         if input() != "y":
             return False
 
-        Manager(self.path, self.workshop_path).update_all_mods(force_overwrite=self.force_overwrite)
+        Manager(self.path, self.workshop_path).update_all_mods(
+            force_overwrite=self.force_overwrite
+        )
         print("Package update complete.")
 
     def migrate(self, arguments):
@@ -684,7 +705,9 @@ class CLI:
         if not self.workshop_path:
             print("Workshop path not found. Please specify with -w /path/to/workshop")
 
-        run_sh(f"find \"{self.workshop_path}\" -mindepth 1 -maxdepth 1 -type d -print0 | xargs -0 cp -rv -t \"{self.path}\" >&2")
+        run_sh(
+            f'find "{self.workshop_path}" -mindepth 1 -maxdepth 1 -type d -print0 | xargs -0 cp -rv -t "{self.path}" >&2'
+        )
         print(
             "Migration complete. To complete the migration go to https://steamcommunity.com/app/294100/workshop/\nNavigate to Browse->Subscribed Items. Then select 'Unsubscribe From All'"
         )
