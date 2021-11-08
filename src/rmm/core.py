@@ -457,7 +457,7 @@ class CLI:
         self.workshop_path = None
 
         try:
-            arguments = docopt.docopt(__doc__, version=f"RMM {__version__}", more_magic=True)
+            arguments = docopt.docopt(__doc__, version=f"RMM {__version__}")
         except docopt.DocoptExit:
             arguments = {}
             print(__doc__)
