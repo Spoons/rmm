@@ -169,6 +169,9 @@ class ModStub(Mod):
     def __init__(self, steamid):
         super().__init__("", steamid=steamid)
 
+    def __str__(self):
+        return f"<ModStub: '{self.steamid}'>"
+
 
 class ModList(MutableSequence):
     def __init__(self, data: Iterable[Mod], name: Optional[str] = None):
@@ -192,6 +195,9 @@ class ModList(MutableSequence):
 
     def insert(self, i, x):
         self.data[i] = x
+
+    def __repr__(self):
+        return f"<ModList: {self.data.__repr__()}>"
 
 
 class ModFolderReader:
@@ -234,12 +240,13 @@ class CsvStringBuilder:
         return iter(self.value)
 
 
-class ModListCSVFormat(ModListSerializer):
+class ModListV3Format(ModListSerializer):
     HEADER = {"PACKAGE_ID": 0, "STEAM_ID": 1, "REPO_URL": 2}
+    MAGIC_FLAG = "RMM_V2_MODLIST"
 
     @classmethod
     def parse(cls, text: str) -> Generator[Mod, None, None]:
-        reader = csv.reader(text)
+        reader = csv.reader(text.split("\n"))
         for parsed in reader:
             try:
                 yield Mod(
@@ -247,7 +254,8 @@ class ModListCSVFormat(ModListSerializer):
                     steamid=int(parsed[cls.HEADER["STEAM_ID"]]),
                     repo_url=parsed[cls.HEADER["REPO_URL"]] if not "" else None,
                 )
-            except ValueError:
+            except (ValueError, IndexError):
+                print("Unable to import: ", parsed)
                 continue
 
     @classmethod
@@ -313,13 +321,15 @@ class ModListV1Format(ModListSerializer):
 
     @classmethod
     def parse(cls, text: str) -> Generator[Mod, None, None]:
-        for line in text:
+        for line in text.split("\n"):
             parsed = line.split("#", 1)
             try:
                 yield ModStub(
                     int(parsed[cls.STEAM_ID]),
                 )
             except ValueError:
+                if line:
+                    print("Unable to import: ", line)
                 continue
 
     @classmethod
@@ -329,20 +339,20 @@ class ModListV1Format(ModListSerializer):
 
     @classmethod
     def format(cls, mod: Mod) -> str:
-        return "{} # {} by {} ".format(str(mod.steamid), mod.name, mod.author)
+        return "{}# {} by {} ".format(str(mod.steamid), mod.name, mod.author)
 
 
 class ModListStreamer:
     @staticmethod
     def read(path: Path, serializer: ModListSerializer) -> Optional[MutableSequence]:
         try:
-            with path as f:
-                text = f.read_text()
+            with path.open("r") as f:
+                text = f.read()
         except OSError as e:
             print(e)
             return None
 
-        return [m for m in ModListV2Format.parse(text)]
+        return [m for m in serializer.parse(text)]
 
     @staticmethod
     def write(path: Path, mods: MutableSequence, serializer: ModListSerializer):
@@ -401,10 +411,16 @@ class WorkshopResult:
         self.rating = rating
 
     def __str__(self):
-        return "\n".join([prop + ": " + str(getattr(self,prop)) for prop in self.__dict__ if not callable(self.__dict__[prop])])
+        return "\n".join(
+            [
+                prop + ": " + str(getattr(self, prop))
+                for prop in self.__dict__
+                if not callable(self.__dict__[prop])
+            ]
+        )
 
     def __repr__(self):
-        return(self.__str__())
+        return self.__str__()
 
     def __eq__(self, other: WorkshopResult) -> bool:
         if not isinstance(other, WorkshopResult):
@@ -415,7 +431,11 @@ class WorkshopResult:
         if not isinstance(other, WorkshopResult):
             raise NotImplementedError
         for prop in other.__dict__:
-            if not callable(other.__dict__[prop]) and hasattr(self, prop) and getattr(other, prop):
+            if (
+                not callable(other.__dict__[prop])
+                and hasattr(self, prop)
+                and getattr(other, prop)
+            ):
                 setattr(self, prop, (getattr(other, prop)))
 
     def get_details(self):
@@ -462,7 +482,9 @@ class WorkshopWebScraper:
         except IndexError:
             updated = None
         try:
-            description = results.find("div", class_="workshopItemDescription").get_text()
+            description = results.find(
+                "div", class_="workshopItemDescription"
+            ).get_text()
         except AttributeError:
             description = None
         try:
@@ -471,7 +493,8 @@ class WorkshopWebScraper:
             num_ratings = None
         try:
             rating = re.search(
-                "([1-5])(?:-star)", str(results.find("div", class_="fileRatingDetails").img)
+                "([1-5])(?:-star)",
+                str(results.find("div", class_="fileRatingDetails").img),
             ).group(1)
         except AttributeError:
             rating = None
@@ -505,9 +528,34 @@ class WorkshopWebScraper:
             yield WorkshopResult(steamid, name=item_title, author=author_name)
 
 
+class Configuration:
+    pass
+
+
+class PathFinder:
+    pass
+
+
+class LoadOrder:
+    pass
+
+class DefAnalyzer:
+    pass
+
+class CLI:
+    pass
+
+
+class LoadOrder:
+    pass
+
+
 class Sort:
     @staticmethod
-    def graph():
+    def graph(mods):
+        import networkx as nx
+        import pyplot as plt
+
         DG = nx.DiGraph()
 
         ignore = ["brrainz.harmony", "UnlimitedHugs.HugsLib"]
@@ -549,9 +597,11 @@ if __name__ == "__main__":
     mods = ModFolderReader.create_mods_list(
         Path("/tmp/rmm/.steam/steamapps/workshop/content/294100/")
     )
-    ModListStreamer.write(Path("/tmp/test_modlist"), mods, ModListCSVFormat())
-    # Workshop scrape test
-    results = WorkshopWebScraper.search("rimhud")
-    for n in results:
-        print(str(n.get_details())+"\n")
-        time.sleep(1)
+    print(mods)
+    # ModListStreamer.write(Path("/tmp/test_modlist"), mods, ModListV1Format())
+    # print(len(  ModListStreamer.read(Path("/tmp/test_modlist"), ModListV1Format()) ) )
+
+    # results = list( WorkshopWebScraper.search("rimhud") )
+    # for n in range(1):
+    #     print( results[n].get_details() )
+    #     print()
