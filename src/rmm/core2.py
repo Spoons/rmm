@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import csv
 import re
+import subprocess
+import sys
 import urllib.request
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
@@ -10,11 +12,8 @@ from collections.abc import MutableSequence
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Any, Generator, Iterable, Iterator, Optional, cast
-import time
 
 from bs4 import BeautifulSoup
-
-from utils.processes import run_sh
 
 
 class Useage:
@@ -379,7 +378,7 @@ class SteamDownloader:
         query = 'env HOME="{}" steamcmd +login anonymous "{}" +quit >&2'.format(
             str(self.home_path), workshop_format(mods)
         )
-        return run_sh(query)
+        return Util.run_sh(query)
 
     def download(self, mods: MutableSequence[Mod]) -> ModList:
         self._get(mods)
@@ -539,14 +538,48 @@ class PathFinder:
 class LoadOrder:
     pass
 
+
+class Util:
+    @staticmethod
+    def platform() -> Optional[str]:
+        unixes = ["darwin", "linux", "freebsd"]
+        windows = "win32"
+
+        for n in unixes:
+            if sys.platform.startswith(n):
+                return "unix"
+        if sys.platform.startswith("win32"):
+            return "win32"
+
+        return None
+
+    @staticmethod
+    def execute(cmd) -> Generator[str, None, None]:
+        with subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+            text=True,
+            close_fds=True,
+            shell=True,
+        ) as proc:
+            for line in iter(proc.stdout.readline, b""):
+                yield line
+                if (r := proc.poll()) is not None:
+                    if r != 0:
+                        raise subprocess.CalledProcessError(r, cmd)
+                    break
+
+    @staticmethod
+    def run_sh(cmd: str) -> str:
+        return subprocess.check_output(cmd, text=True, shell=True).strip()
+
+
 class DefAnalyzer:
     pass
 
 class CLI:
-    pass
-
-
-class LoadOrder:
     pass
 
 
