@@ -13,10 +13,9 @@ from collections.abc import MutableSequence
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Any, Generator, Iterable, Iterator, Optional, cast
+from xml.dom import minidom
 
 from bs4 import BeautifulSoup
-
-from rmm.core import DEFAULT_GAME_PATHS
 
 
 class Useage:
@@ -64,6 +63,77 @@ class Useage:
     """
 
 
+class Util:
+    @staticmethod
+    def platform() -> Optional[str]:
+        unixes = ["darwin", "linux", "freebsd"]
+        windows = "win32"
+
+        for n in unixes:
+            if sys.platform.startswith(n):
+                return "unix"
+        if sys.platform.startswith("win32"):
+            return "win32"
+
+        return None
+
+    @staticmethod
+    def execute(cmd) -> Generator[str, None, None]:
+        with subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+            text=True,
+            close_fds=True,
+            shell=True,
+        ) as proc:
+            for line in iter(proc.stdout.readline, b""):
+                yield line
+                if (r := proc.poll()) is not None:
+                    if r != 0:
+                        raise subprocess.CalledProcessError(r, cmd)
+                    break
+
+    @staticmethod
+    def run_sh(cmd: str) -> str:
+        return subprocess.check_output(cmd, text=True, shell=True).strip()
+
+    @staticmethod
+    def copy(source: Path, destination: Path, recursive: bool = False):
+        if recursive:
+            shutil.copytree(source, destination)
+        else:
+            shutil.copy2(source, destination, follow_symlinks=True)
+
+    @staticmethod
+    def move(source: Path, destination: Path):
+        shutil.move(source, destination)
+
+    @staticmethod
+    def remove(dest: Path):
+        shutil.rmtree(dest)
+
+
+class XMLUtil:
+    @staticmethod
+    def list_grab(element: str, root: ET.ElementTree) -> Optional[list[str]]:
+        try:
+            return cast(
+                Optional[list[str]],
+                [n.text for n in cast(ET.Element, root.find(element)).findall("li")],
+            )
+        except AttributeError:
+            return None
+
+    @staticmethod
+    def element_grab(element: str, root: ET.ElementTree) -> Optional[str]:
+        try:
+            return cast(ET.Element, root.find(element)).text
+        except AttributeError:
+            return None
+
+
 class Mod:
     def __init__(
         self,
@@ -104,24 +174,6 @@ class Mod:
             except AttributeError:
                 return None
 
-            def xml_list_grab(element: str) -> Optional[list[str]]:
-                try:
-                    return cast(
-                        Optional[list[str]],
-                        [
-                            n.text
-                            for n in cast(ET.Element, root.find(element)).findall("li")
-                        ],
-                    )
-                except AttributeError:
-                    return None
-
-            def xml_element_grab(element: str) -> Optional[str]:
-                try:
-                    return cast(ET.Element, root.find(element)).text
-                except AttributeError:
-                    return None
-
             def read_steamid(path: Path) -> Optional[int]:
                 try:
                     return int((path / "About" / "PublishedFileId.txt").read_text())
@@ -138,13 +190,13 @@ class Mod:
 
             return Mod(
                 packageid,
-                before=xml_list_grab("loadAfter"),
-                after=xml_list_grab("loadBefore"),
-                incompatible=xml_list_grab("incompatibleWith"),
+                before=XMLUtil.list_grab("loadAfter", root),
+                after=XMLUtil.list_grab("loadBefore", root),
+                incompatible=XMLUtil.list_grab("incompatibleWith", root),
                 path=dirpath,
-                author=xml_element_grab("author"),
-                name=xml_element_grab("name"),
-                versions=xml_list_grab("supportedVersions"),
+                author=XMLUtil.element_grab("author", root),
+                name=XMLUtil.element_grab("name", root),
+                versions=XMLUtil.list_grab("supportedVersions", root),
                 steamid=read_steamid(dirpath),
                 ignored=read_ignored(dirpath),
             )
@@ -509,7 +561,7 @@ class Configuration:
     pass
 
 
-class cls:
+class PathFinder:
     DEFAULT_GAME_PATHS = [
         "~/GOG Games/RimWorld",
         "~/.local/share/Steam/steamapps/common/RimWorld",
@@ -549,7 +601,6 @@ class cls:
                 return False
         return True
 
-
     @staticmethod
     def _search_root(p: Path, f) -> Optional[Path]:
         p = p.expanduser()
@@ -570,10 +621,9 @@ class cls:
     @staticmethod
     def _search_defaults(defaults: list[str], f) -> Optional[Path]:
         for p in defaults:
-            if p := f(p):
+            if p := f(Path(p)):
                 return p
         return None
-
 
     @classmethod
     def find_game(cls, p: Path) -> Optional[Path]:
@@ -599,60 +649,41 @@ class cls:
     def find_config_defaults(cls) -> Optional[Path]:
         return cls._search_defaults(cls.DEFAULT_CONFIG_PATHS, cls.find_config)
 
-class ModConfig:
-    pass
 
+class ModsConfig:
+    def __init__(self, p: Path):
+        self.path = p.expanduser()
+        self.element_tree = ET.parse(self.path)
+        self.root = self.element_tree.getroot()
+        enabled = XMLUtil.list_grab("activeMods", self.root)
+        self.mods = [Mod(pid) for pid in enabled]
+        self.version = XMLUtil.element_grab("version", self.root)
+        self.length = len(self.mods)
 
-class Util:
-    @staticmethod
-    def platform() -> Optional[str]:
-        unixes = ["darwin", "linux", "freebsd"]
-        windows = "win32"
+    def write(self):
+        active_mods = self.root.find('activeMods')
+        for item in list(active_mods.findall('li')):
+            active_mods.remove(item)
 
-        for n in unixes:
-            if sys.platform.startswith(n):
-                return "unix"
-        if sys.platform.startswith("win32"):
-            return "win32"
+        for mod in self.mods:
+            new_element = ET.SubElement(active_mods, 'li')
+            new_element.text = mod.packageid
 
-        return None
+        sbuffer = ET.tostring(self.root, 'utf-8').decode()
+        sbuffer = str(re.sub(r"[\n\t\s]*", "", str(sbuffer)))
+        minidom.parseString(sbuffer)
+        print(
+            minidom.parseString(sbuffer)
+            .toprettyxml(indent="  ", newl="\n")
+        )
 
-    @staticmethod
-    def execute(cmd) -> Generator[str, None, None]:
-        with subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            universal_newlines=True,
-            text=True,
-            close_fds=True,
-            shell=True,
-        ) as proc:
-            for line in iter(proc.stdout.readline, b""):
-                yield line
-                if (r := proc.poll()) is not None:
-                    if r != 0:
-                        raise subprocess.CalledProcessError(r, cmd)
-                    break
+    def enable_mod(self, m: Mod):
+        self.mods.append(m)
 
-    @staticmethod
-    def run_sh(cmd: str) -> str:
-        return subprocess.check_output(cmd, text=True, shell=True).strip()
-
-    @staticmethod
-    def copy(source: Path, destination: Path, recursive: bool = False):
-        if recursive:
-            shutil.copytree(source, destination)
-        else:
-            shutil.copy2(source, destination, follow_symlinks=True)
-
-    @staticmethod
-    def move(source: Path, destination: Path):
-        shutil.move(source, destination)
-
-    @staticmethod
-    def remove(dest: Path):
-        shutil.rmtree(dest)
+    def remove_mod(self, m: Mod):
+        for k,v in enumerate(self.mods):
+            if self.mods[k] == m:
+                del self.mods[k]
 
 
 class DefAnalyzer:
@@ -714,15 +745,19 @@ if __name__ == "__main__":
 
     # print(PathFinder.search_game_root(Path('~/')))
     print(
-        cls.get_workshop_from_game_path(
+        PathFinder.get_workshop_from_game_path(
             Path("~/.local/share/Steam/steamapps/common/RimWorld")
         )
     )
     print(
-        cls.get_workshop_from_game_path(
+        PathFinder.get_workshop_from_game_path(
             Path("~/.local/share/Steam/steamapps/workshop/content/294100")
         )
     )
+    test = ModsConfig(PathFinder.find_config_defaults() / "Config/ModsConfig.xml")
+    test.remove_mod(Mod('fluffy.desirepaths'))
+    test.write()
+
     # ModListStreamer.write(Path("/tmp/test_modlist"), mods, ModListV1Format())
     # print(len(  ModListStreamer.read(Path("/tmp/test_modlist"), ModListV1Format()) ) )
 
