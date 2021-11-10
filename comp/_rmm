@@ -1,0 +1,235 @@
+#compdef rmm
+
+_message_next_arg()
+{
+    argcount=0
+    for word in "${words[@][2,-1]}"
+    do
+        if [[ $word != -* ]] ; then
+            ((argcount++))
+        fi
+    done
+    if [[ $argcount -le ${#myargs[@]} ]] ; then
+        _message -r $myargs[$argcount]
+        if [[ $myargs[$argcount] =~ ".*file.*" || $myargs[$argcount] =~ ".*path.*" ]] ; then
+            _files
+        fi
+    fi
+}
+
+_rmm ()
+{
+    local context state state_descr line
+    typeset -A opt_args
+
+    _arguments -C \
+        ':command:->command' \
+		'(-h)-h' \
+		'(--help)--help' \
+		'(-v)-v' \
+		'(--version)--version' \
+        '*::options:->options'
+
+    case $state in
+        (command)
+            local -a subcommands
+            subcommands=(
+				'export[Save mod list to file.]'
+				'import[Install a mod list from a file.]'
+				'list[List installed mods.]'
+				'migrate[Remove mods from workshop and install locally.]'
+				'query[Search installed mods.]'
+				'remove[Remove installed mod.]'
+				'search[Search Workshop.]'
+				'sync[Install or update a mod.]'
+				'update[Update all mods from Steam.]'
+            )
+            _values 'rmm' $subcommands
+        ;;
+
+        (options)
+            case $line[1] in
+                export)
+                    _rmm-export
+                ;;
+                import)
+                    _rmm-import
+                ;;
+                list)
+                    _rmm-list
+                ;;
+                migrate)
+                    _rmm-migrate
+                ;;
+                query)
+                    _rmm-query
+                ;;
+                remove)
+                    _rmm-remove
+                ;;
+                search)
+                    _rmm-search
+                ;;
+                sync)
+                    _rmm-sync
+                ;;
+                update)
+                    _rmm-update
+                ;;
+            esac
+        ;;
+    esac
+
+}
+
+_rmm-export ()
+{
+    local context state state_descr line
+    typeset -A opt_args
+
+    if [[ $words[$CURRENT] == -* ]] ; then
+        _arguments -C \
+        '(-p --path)':file:_files
+
+    else
+        myargs=('<file>')
+        _message_next_arg
+    fi
+}
+
+_rmm-import ()
+{
+    local context state state_descr line
+    typeset -A opt_args
+
+    if [[ $words[$CURRENT] == -* ]] ; then
+        _arguments -C \
+        ':command:->command' \
+
+    else
+        myargs=('<file>')
+        _message_next_arg
+    fi
+}
+
+_rmm-list ()
+{
+    local context state state_descr line
+    typeset -A opt_args
+
+    _arguments -C \
+        ':command:->command' \
+        
+}
+
+_rmm-migrate ()
+{
+    local context state state_descr line
+    typeset -A opt_args
+
+    _arguments -C \
+        ':command:->command' \
+        
+}
+
+_rmm-query ()
+{
+    local context state state_descr line
+    typeset -A opt_args
+
+    if [[ $words[$CURRENT] == -* ]] ; then
+        _arguments -C \
+        ':command:->command' \
+
+    else
+        myargs=('<term>')
+        _message_next_arg
+    fi
+}
+
+_rmm-remove ()
+{
+    local context state state_descr line
+    typeset -A opt_args
+
+    if [[ $words[$CURRENT] == -* ]] ; then
+        _arguments -C \
+        ':command:->command' \
+
+    else
+        myargs=('<term>')
+        _message_next_arg
+    fi
+}
+
+_rmm-search ()
+{
+    local context state state_descr line
+    typeset -A opt_args
+
+    if [[ $words[$CURRENT] == -* ]] ; then
+        _arguments -C \
+        ':command:->command' \
+
+    else
+        myargs=('<term>')
+        _message_next_arg
+    fi
+}
+
+_rmm-sync ()
+{
+    local context state state_descr line
+    typeset -A opt_args
+
+    if [[ $words[$CURRENT] == -* ]] ; then
+        _arguments -C \
+        ':command:->command' \
+
+    else
+        myargs=('<name>')
+        _message_next_arg
+    fi
+}
+
+_rmm-update ()
+{
+    local context state state_descr line
+    typeset -A opt_args
+
+    _arguments -C \
+        ':command:->command' \
+        '*::options:->options'
+
+    case $state in
+        (command)
+            local -a subcommands
+            subcommands=(
+				'sync'
+            )
+            _values 'rmm update' $subcommands
+        ;;
+
+        (options)
+            case $line[1] in
+                sync)
+                    _rmm-update-sync
+                ;;
+            esac
+        ;;
+    esac
+
+}
+
+_rmm-update-sync ()
+{
+    local context state state_descr line
+    typeset -A opt_args
+
+    _arguments -C \
+        ':command:->command' \
+        
+}
+
+
+_rmm "$@"
