@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+v0.0.8
+------
+
+* fix: exception on import command
+* feat: adds PKGBUILD and zsh/bash completions
+* fix: removed more\_magic for docopt (non-ng) compatibility
+* feat: add issue template
 * feat: add changelog and authors
 
 v0.0.7
