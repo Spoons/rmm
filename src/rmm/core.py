@@ -569,6 +569,9 @@ class CLI:
             "update",
         ]:
             if arguments[command] == True:
+                if command == "import":
+                    command = '_import'
+                    
                 getattr(self, command)(arguments)
 
     def search(self, arguments):
