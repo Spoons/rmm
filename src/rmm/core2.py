@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import re
+import shutil
 import subprocess
 import sys
 import urllib.request
@@ -14,6 +15,8 @@ from pathlib import Path
 from typing import Any, Generator, Iterable, Iterator, Optional, cast
 
 from bs4 import BeautifulSoup
+
+from rmm.core import DEFAULT_GAME_PATHS
 
 
 class Useage:
@@ -239,7 +242,7 @@ class CsvStringBuilder:
         return iter(self.value)
 
 
-class ModListV3Format(ModListSerializer):
+class ModListV2Format(ModListSerializer):
     HEADER = {"PACKAGE_ID": 0, "STEAM_ID": 1, "REPO_URL": 2}
     MAGIC_FLAG = "RMM_V2_MODLIST"
 
@@ -274,44 +277,6 @@ class ModListV3Format(ModListSerializer):
                 str(mod.steamid) if not None else "",
                 mod.repo_url if not None else "",
             ],
-        )
-
-
-class ModListV2Format(ModListSerializer):
-    MAGIC_ID = "rmm_modlist_v2"
-    SEPERATOR = "::"
-    PACKAGE_ID = 0
-    STEAM_ID = 1
-    REPO_URL = 2
-
-    @classmethod
-    def parse(cls, text: str) -> Generator[Mod, None, None]:
-        for line in text:
-            parsed = line.split(str(cls.SEPERATOR))
-            try:
-                if not parsed[cls.PACKAGE_ID]:
-                    continue
-                yield Mod(
-                    parsed[cls.PACKAGE_ID],
-                    steamid=int(parsed[cls.STEAM_ID]),
-                    repo_url=parsed[cls.REPO_URL] if not "" else None,
-                )
-            except ValueError:
-                continue
-
-    @classmethod
-    def serialize(cls, mods: MutableSequence) -> Generator[str, None, None]:
-        for m in mods:
-            yield cls.format(m)
-
-    @classmethod
-    def format(cls, mod: Mod) -> str:
-        return cls.SEPERATOR.join(
-            [
-                mod.packageid,
-                str(mod.steamid) if not None else "",
-                mod.repo_url if not None else "",
-            ]
         )
 
 
@@ -540,18 +505,24 @@ class Configuration:
     [Rules]
     1: *vanilla* > *
     """
+
     pass
 
 
-class PathFinder:
+class cls:
     DEFAULT_GAME_PATHS = [
         "~/GOG Games/RimWorld",
         "~/.local/share/Steam/steamapps/common/RimWorld",
         "/Applications/Rimworld.app/Mods",
-        "~/Library/Application Support/Steam/steamapps/common/RimWorld"
+        "~/Library/Application Support/Steam/steamapps/common/RimWorld",
     ]
 
-    DEFAULT_CONFIG_PATH = ["~/Library/Application Support/Rimworld/"]
+    DEFAULT_WORKSHOP_PATHS = ["~/.local/share/Steam/steamapps/workshop/content/294100"]
+
+    DEFAULT_CONFIG_PATHS = [
+        "~/Library/Application Support/Rimworld/",
+        "~/.config/unity3d/Ludeon Studios/RimWorld by Ludeon Studios",
+    ]
 
     @staticmethod
     def _is_game_dir(p: Path) -> bool:
@@ -563,31 +534,70 @@ class PathFinder:
 
     @staticmethod
     def _is_workshop_dir(p: Path) -> bool:
-        return p.name == "294100" and p.parts[-2] == "content" and p.parts[-3] == "workshop"
+        return (
+            p.name == "294100"
+            and p.parts[-2] == "content"
+            and p.parts[-3] == "workshop"
+        )
+
+    @staticmethod
+    def _is_config_dir(p: Path) -> bool:
+        files_to_find = ["Config", "prefs", "Saves"]
+        child_names = [f.name for f in p.iterdir()]
+        for target_name in files_to_find:
+            if not target_name in child_names:
+                return False
+        return True
+
 
     @staticmethod
     def _search_root(p: Path, f) -> Optional[Path]:
         p = p.expanduser()
-        for n in p.glob('**/'):
+        for n in p.glob("**/"):
             if f(n):
-                return (n)
+                return n
         return None
 
     @staticmethod
     def get_workshop_from_game_path(p: Path):
         p = p.expanduser()
-        for k,v in enumerate(p.parts):
-            if v == 'steamapps':
-                return Path(*list(p.parts[0:k])) / Path("steamapps/workshop/content/294100")
+        for index, dirname in enumerate(p.parts):
+            if dirname == "steamapps":
+                return Path(*list(p.parts[0:index])) / Path(
+                    "steamapps/workshop/content/294100"
+                )
 
     @staticmethod
+    def _search_defaults(defaults: list[str], f) -> Optional[Path]:
+        for p in defaults:
+            if p := f(p):
+                return p
+        return None
+
+
+    @classmethod
     def find_game(cls, p: Path) -> Optional[Path]:
-        return PathFinder._search_root(p, PathFinder._is_game_dir)
+        return cls._search_root(p, cls._is_game_dir)
 
-
-    @staticmethod
+    @classmethod
     def find_workshop(cls, p: Path) -> Optional[Path]:
-        return PathFinder._search_root(p, PathFinder._is_workshop_dir)
+        return cls._search_root(p, cls._is_workshop_dir)
+
+    @classmethod
+    def find_config(cls, p: Path) -> Optional[Path]:
+        return cls._search_root(p, cls._is_config_dir)
+
+    @classmethod
+    def find_game_defaults(cls) -> Optional[Path]:
+        return cls._search_defaults(cls.DEFAULT_GAME_PATHS, cls.find_game)
+
+    @classmethod
+    def find_workshop_defaults(cls) -> Optional[Path]:
+        return cls._search_defaults(cls.DEFAULT_WORKSHOP_PATHS, cls.find_workshop)
+
+    @classmethod
+    def find_config_defaults(cls) -> Optional[Path]:
+        return cls._search_defaults(cls.DEFAULT_CONFIG_PATHS, cls.find_config)
 
 class ModConfig:
     pass
@@ -630,16 +640,20 @@ class Util:
         return subprocess.check_output(cmd, text=True, shell=True).strip()
 
     @staticmethod
-    def copy(source: Path, destination: Path, recursive:bool=False):
-        pass
+    def copy(source: Path, destination: Path, recursive: bool = False):
+        if recursive:
+            shutil.copytree(source, destination)
+        else:
+            shutil.copy2(source, destination, follow_symlinks=True)
 
     @staticmethod
     def move(source: Path, destination: Path):
-        pass
+        shutil.move(source, destination)
 
     @staticmethod
-    def remove(dest: Path, recursive:bool=False):
-        pass
+    def remove(dest: Path):
+        shutil.rmtree(dest)
+
 
 class DefAnalyzer:
     pass
@@ -699,8 +713,16 @@ if __name__ == "__main__":
     # print(mods)
 
     # print(PathFinder.search_game_root(Path('~/')))
-    print(PathFinder.get_workshop_from_game_path(Path("~/.local/share/Steam/steamapps/common/RimWorld")))
-    print(PathFinder.get_workshop_from_game_path(Path("~/.local/share/Steam/steamapps/workshop/content/294100")))
+    print(
+        cls.get_workshop_from_game_path(
+            Path("~/.local/share/Steam/steamapps/common/RimWorld")
+        )
+    )
+    print(
+        cls.get_workshop_from_game_path(
+            Path("~/.local/share/Steam/steamapps/workshop/content/294100")
+        )
+    )
     # ModListStreamer.write(Path("/tmp/test_modlist"), mods, ModListV1Format())
     # print(len(  ModListStreamer.read(Path("/tmp/test_modlist"), ModListV1Format()) ) )
 
