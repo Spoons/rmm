@@ -528,14 +528,68 @@ class WorkshopWebScraper:
 
 
 class Configuration:
+    """
+    [Paths]
+    rimworld: somepath
+    workshop: somepath
+
+    [Options]
+    use_human_readable_dirs: false
+    ignore_git_directories: false
+
+    [Rules]
+    1: *vanilla* > *
+    """
     pass
 
 
 class PathFinder:
-    pass
+    DEFAULT_GAME_PATHS = [
+        "~/GOG Games/RimWorld",
+        "~/.local/share/Steam/steamapps/common/RimWorld",
+        "/Applications/Rimworld.app/Mods",
+        "~/Library/Application Support/Steam/steamapps/common/RimWorld"
+    ]
+
+    DEFAULT_CONFIG_PATH = ["~/Library/Application Support/Rimworld/"]
+
+    @staticmethod
+    def _is_game_dir(p: Path) -> bool:
+        if p.name == "Mods":
+            for n in p.parent.iterdir():
+                if n.name == "Version.txt":
+                    return True
+        return False
+
+    @staticmethod
+    def _is_workshop_dir(p: Path) -> bool:
+        return p.name == "294100" and p.parts[-2] == "content" and p.parts[-3] == "workshop"
+
+    @staticmethod
+    def _search_root(p: Path, f) -> Optional[Path]:
+        p = p.expanduser()
+        for n in p.glob('**/'):
+            if f(n):
+                return (n)
+        return None
+
+    @staticmethod
+    def get_workshop_from_game_path(p: Path):
+        p = p.expanduser()
+        for k,v in enumerate(p.parts):
+            if v == 'steamapps':
+                return Path(*list(p.parts[0:k])) / Path("steamapps/workshop/content/294100")
+
+    @staticmethod
+    def find_game(cls, p: Path) -> Optional[Path]:
+        return PathFinder._search_root(p, PathFinder._is_game_dir)
 
 
-class LoadOrder:
+    @staticmethod
+    def find_workshop(cls, p: Path) -> Optional[Path]:
+        return PathFinder._search_root(p, PathFinder._is_workshop_dir)
+
+class ModConfig:
     pass
 
 
@@ -575,15 +629,27 @@ class Util:
     def run_sh(cmd: str) -> str:
         return subprocess.check_output(cmd, text=True, shell=True).strip()
 
+    @staticmethod
+    def copy(source: Path, destination: Path, recursive:bool=False):
+        pass
+
+    @staticmethod
+    def move(source: Path, destination: Path):
+        pass
+
+    @staticmethod
+    def remove(dest: Path, recursive:bool=False):
+        pass
 
 class DefAnalyzer:
     pass
+
 
 class CLI:
     pass
 
 
-class Sort:
+class GraphAnalyzer:
     @staticmethod
     def graph(mods):
         import networkx as nx
@@ -627,10 +693,14 @@ class Sort:
 
 if __name__ == "__main__":
     # Create test mod list
-    mods = ModFolderReader.create_mods_list(
-        Path("/tmp/rmm/.steam/steamapps/workshop/content/294100/")
-    )
-    print(mods)
+    # mods = ModFolderReader.create_mods_list(
+    #     Path("/tmp/rmm/.steam/steamapps/workshop/content/294100/")
+    # )
+    # print(mods)
+
+    # print(PathFinder.search_game_root(Path('~/')))
+    print(PathFinder.get_workshop_from_game_path(Path("~/.local/share/Steam/steamapps/common/RimWorld")))
+    print(PathFinder.get_workshop_from_game_path(Path("~/.local/share/Steam/steamapps/workshop/content/294100")))
     # ModListStreamer.write(Path("/tmp/test_modlist"), mods, ModListV1Format())
     # print(len(  ModListStreamer.read(Path("/tmp/test_modlist"), ModListV1Format()) ) )
 
