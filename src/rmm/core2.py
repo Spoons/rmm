@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 from collections.abc import MutableSequence
 from multiprocessing import Pool
 from pathlib import Path
-from typing import Any, Generator, Iterable, Iterator, Optional, cast
+from typing import Any, Generator, Iterable, Iterator, Optional, cast, Callable
 from xml.dom import minidom
 
 from bs4 import BeautifulSoup
@@ -117,7 +117,7 @@ class Util:
 
 class XMLUtil:
     @staticmethod
-    def list_grab(element: str, root: ET.ElementTree) -> Optional[list[str]]:
+    def list_grab(element: str, root: ET.Element) -> Optional[list[str]]:
         try:
             return cast(
                 Optional[list[str]],
@@ -127,11 +127,17 @@ class XMLUtil:
             return None
 
     @staticmethod
-    def element_grab(element: str, root: ET.ElementTree) -> Optional[str]:
+    def element_grab(element: str, root: ET.Element) -> Optional[str]:
         try:
             return cast(ET.Element, root.find(element)).text
         except AttributeError:
             return None
+
+    @staticmethod
+    def et_pretty_xml(root: ET.Element) -> str:
+        return minidom.parseString(
+            re.sub(r"[\n\t\s]*", "", (ET.tostring(cast(ET.Element, root), "utf-8").decode()))
+        ).toprettyxml(indent="  ", newl="\n")
 
 
 class Mod:
@@ -247,7 +253,7 @@ class ModList(MutableSequence):
     def __len__(self) -> int:
         return len(self.data)
 
-    def insert(self, i, x):
+    def insert(self, i, x) -> None:
         self.data[i] = x
 
     def __repr__(self):
@@ -256,7 +262,7 @@ class ModList(MutableSequence):
 
 class ModFolderReader:
     @staticmethod
-    def create_mods_list(path) -> ModList[Mod]:
+    def create_mods_list(path: Path) -> ModList:
         with Pool(16) as p:
             mods = filter(
                 None,
@@ -271,12 +277,12 @@ class ModFolderReader:
 class ModListSerializer(ABC):
     @classmethod
     @abstractmethod
-    def parse(cls, text: str) -> None:
+    def parse(cls, text: str) -> Generator[Mod, None, None]:
         pass
 
     @classmethod
     @abstractmethod
-    def serialize(cls, mods: MutableSequence) -> None:
+    def serialize(cls, mods: MutableSequence) -> Generator[str, None, None]:
         pass
 
 
@@ -566,7 +572,6 @@ class PathFinder:
         "~/GOG Games/RimWorld",
         "~/.local/share/Steam/steamapps/common/RimWorld",
         "/Applications/Rimworld.app/Mods",
-        "~/Library/Application Support/Steam/steamapps/common/RimWorld",
     ]
 
     DEFAULT_WORKSHOP_PATHS = ["~/.local/share/Steam/steamapps/workshop/content/294100"]
@@ -652,36 +657,58 @@ class PathFinder:
 
 class ModsConfig:
     def __init__(self, p: Path):
+        if isinstance(p, str):
+            p = Path(p)
         self.path = p.expanduser()
-        self.element_tree = ET.parse(self.path)
+        try:
+            self.element_tree = ET.parse(self.path)
+        except OSError:
+            print("Unable to read ModsConfig file at " + str(self.path))
+            raise
+
         self.root = self.element_tree.getroot()
-        enabled = XMLUtil.list_grab("activeMods", self.root)
-        self.mods = [Mod(pid) for pid in enabled]
+        try:
+            enabled = cast(list[str], XMLUtil.list_grab("activeMods", cast(ET.ElementTree, self.root)))
+            self.mods = [Mod(pid) for pid in enabled]
+        except TypeError:
+            print("Unable to parse activeMods in ModsConfig")
+            raise
         self.version = XMLUtil.element_grab("version", self.root)
         self.length = len(self.mods)
 
     def write(self):
-        active_mods = self.root.find('activeMods')
-        for item in list(active_mods.findall('li')):
-            active_mods.remove(item)
+        active_mods = self.root.find("activeMods")
+        try:
+            for item in list(active_mods.findall("li")):
+                active_mods.remove(item)
+        except AttributeError:
+            pass
 
-        for mod in self.mods:
-            new_element = ET.SubElement(active_mods, 'li')
-            new_element.text = mod.packageid
+        try:
+            for mod in self.mods:
+                new_element = ET.SubElement(active_mods, "li")
+                new_element.text = mod.packageid
+        except AttributeError:
+            raise Exception("Unable to find \'activeMods\' in ModsConfig")
 
-        sbuffer = ET.tostring(self.root, 'utf-8').decode()
-        sbuffer = str(re.sub(r"[\n\t\s]*", "", str(sbuffer)))
-        minidom.parseString(sbuffer)
-        print(
-            minidom.parseString(sbuffer)
-            .toprettyxml(indent="  ", newl="\n")
-        )
+        buffer = XMLUtil.et_pretty_xml(self.root)
+        print(buffer)
+
+        try:
+            with self.path.open('w+') as f:
+                f.seek(0)
+                f.write(buffer)
+        except OSError:
+            print("Unable to write ModsConfig")
+            raise
+
+
 
     def enable_mod(self, m: Mod):
         self.mods.append(m)
 
     def remove_mod(self, m: Mod):
-        for k,v in enumerate(self.mods):
+        for k, v in enumerate(self.mods):
             if self.mods[k] == m:
                 del self.mods[k]
 
@@ -738,30 +765,22 @@ class GraphAnalyzer:
 
 if __name__ == "__main__":
     # Create test mod list
-    # mods = ModFolderReader.create_mods_list(
-    #     Path("/tmp/rmm/.steam/steamapps/workshop/content/294100/")
-    # )
-    # print(mods)
+    mods = ModFolderReader.create_mods_list(PathFinder.find_game(Path("~/apps")))
+    print(mods)
 
-    # print(PathFinder.search_game_root(Path('~/')))
     print(
         PathFinder.get_workshop_from_game_path(
             Path("~/.local/share/Steam/steamapps/common/RimWorld")
         )
     )
-    print(
-        PathFinder.get_workshop_from_game_path(
-            Path("~/.local/share/Steam/steamapps/workshop/content/294100")
-        )
-    )
     test = ModsConfig(PathFinder.find_config_defaults() / "Config/ModsConfig.xml")
-    test.remove_mod(Mod('fluffy.desirepaths'))
+    test.remove_mod(Mod("fluffy.desirepaths"))
     test.write()
 
-    # ModListStreamer.write(Path("/tmp/test_modlist"), mods, ModListV1Format())
-    # print(len(  ModListStreamer.read(Path("/tmp/test_modlist"), ModListV1Format()) ) )
+    ModListStreamer.write(Path("/tmp/test_modlist"), mods, ModListV1Format())
+    print(len(ModListStreamer.read(Path("/tmp/test_modlist"), ModListV1Format())))
 
-    # results = list( WorkshopWebScraper.search("rimhud") )
-    # for n in range(1):
-    #     print( results[n].get_details() )
-    #     print()
+    results = list(WorkshopWebScraper.search("rimhud"))
+    for n in range(1):
+        print(results[n].get_details())
+        print()
