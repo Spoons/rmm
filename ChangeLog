@@ -1,6 +1,10 @@
 CHANGES
 =======
 
+v0.0.9
+------
+
+* fix: added importlib.metadata dep
 * feat: update change log. remove pkgbuild
 
 v0.0.8
