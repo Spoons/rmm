@@ -157,7 +157,7 @@ class Mod:
 
         try:
             with open(os.path.join(filepath, "About/PublishedFileId.txt")) as f:
-                steamid = f.readline().strip()
+                steamid = f.readline().strip().encode("ascii", errors="ignore").decode()
         except FileNotFoundError:
             steamid = None
 
@@ -250,6 +250,7 @@ class SteamDownloader:
         query = 'env HOME="{}" steamcmd +login anonymous "{}" +quit >&2'.format(
             folder, workshop_format(mods)
         )
+        print(query.split(" "))
         run_sh(query)
         print()
 
@@ -571,7 +572,7 @@ class CLI:
             if arguments[command] == True:
                 if command == "import":
                     command = '_import'
-                    
+
                 getattr(self, command)(arguments)
 
     def search(self, arguments):
