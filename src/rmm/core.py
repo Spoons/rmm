@@ -10,6 +10,7 @@ import subprocess
 import sys
 import urllib.request
 import xml.etree.ElementTree as ET
+import tempfile
 from abc import ABC, abstractmethod
 from collections.abc import MutableSequence
 from multiprocessing import Pool
@@ -19,6 +20,9 @@ from xml.dom import minidom
 
 import tabulate
 from bs4 import BeautifulSoup
+
+class InvalidSelectionException(Exception):
+    pass
 
 
 class Useage:
@@ -231,14 +235,6 @@ class Mod:
         return f"<Mod: '{self.packageid}'>"
 
 
-class ModStub(Mod):
-    def __init__(self, steamid):
-        super().__init__("", steamid=steamid)
-
-    def __str__(self):
-        return f"<ModStub: '{self.steamid}'>"
-
-
 class ModList(MutableSequence):
     def __init__(self, data: Iterable[Mod], name: Optional[str] = None):
         if not isinstance(data, MutableSequence):
@@ -352,8 +348,9 @@ class ModListV1Format(ModListSerializer):
         for line in text.split("\n"):
             parsed = line.split("#", 1)
             try:
-                yield ModStub(
-                    int(parsed[cls.STEAM_ID]),
+                yield Mod(
+                    None,
+                    steamid=int(parsed[cls.STEAM_ID]),
                 )
             except ValueError:
                 if line:
@@ -394,24 +391,34 @@ class ModListStreamer:
 
 
 class SteamDownloader:
-    def __init__(self, folder: Path):
-        self.home_path = folder
-        self.mod_path = folder / ".steam/steamapps/workshop/content/294100/"
+    @staticmethod
+    def download(mods: list[int]) -> tuple[ModList, Path]:
+        home_path = None
+        mod_path = None
+        for d in Path("/tmp").iterdir():
+            if d.name[0:4] == "rmm-" and d.is_dir() and (d / ".rmm").is_file():
+                home_path = d
+                break
 
-    def _get(self, mods: MutableSequence):
-        def workshop_format(mods):
-            return (s := " +workshop_download_item 294100 ") + s.join(
-                m.steamid for m in mods if not None
-            )
+        if not home_path:
+            home_path = Path(tempfile.mkdtemp(prefix="rmm-"))
+            with open((home_path / ".rmm"), "w"):
+                pass
 
+        if not home_path:
+            raise Exception("Error could not get temporary directory")
+
+        home_path = cast(Path, home_path)
+        mod_path = home_path / ".steam/steamapps/workshop/content/294100/"
+        mod_path = cast(Path, mod_path)
+
+        workshop_item_arg = " +workshop_download_item 294100 "
         query = 'env HOME="{}" steamcmd +login anonymous "{}" +quit >&2'.format(
-            str(self.home_path), workshop_format(mods)
+            str(home_path), workshop_item_arg + workshop_item_arg.join(str(m) for m in mods)
         )
-        return Util.run_sh(query)
+        Util.run_sh(query)
 
-    def download(self, mods: MutableSequence[Mod]) -> ModList:
-        self._get(mods)
-        return ModFolderReader.create_mods_list(self.home_path)
+        return (ModFolderReader.create_mods_list(mod_path), mod_path)
 
 
 class WorkshopResult:
@@ -549,13 +556,14 @@ class WorkshopWebScraper:
                 )
             except (AttributeError, ValueError):
                 continue
-            print("grabbing " + item_title)
             result = WorkshopResult(steamid, name=item_title, author=author_name)
             if details:
+                print("grabbing " + item_title)
                 detailsResult = WorkshopWebScraper.detail(steamid)
                 if detailsResult:
                     result._merge(detailsResult)
             yield result
+
 
 class Configuration:
     """
@@ -732,6 +740,7 @@ class ModsConfig:
 class DefAnalyzer:
     pass
 
+
 class GraphAnalyzer:
     @staticmethod
     def graph(mods):
@@ -810,14 +819,6 @@ class CLI:
         except IndexError:
             pass
 
-        # flag_options = [()]
-        # try:
-        #     while s:= CLI.__find_in_mixed_str_tuple_list(sys.argv[0], f[1:] for f in flag_options):
-        #         del sys.argv[0]
-        #         config[s] = True
-        # except IndexError:
-        #     pass
-        #
         return config
 
     @staticmethod
@@ -859,12 +860,35 @@ class CLI:
 
     @staticmethod
     def sync(args: list[str], config: Config):
-        print(config)
+        results = list(reversed(list(WorkshopWebScraper.search(" ".join(args[1:])))))
+        print(tabulate.tabulate([[len(results)-k, r.name, r.author, r.num_ratings, r.description] for k,r in enumerate(results)]))
+        print("Packages to install (eg: 2)")
+
+        while True:
+            try:
+                selection = len(results) - int(input())
+                if selection >= len(results) or selection < 0:
+                    raise InvalidSelectionException("Out of bounds")
+                break
+            except ValueError:
+                print("Must enter valid integer")
+            except InvalidSelectionException:
+                print("Selection out of bounds.")
+
+        # print(
+        #     "Package(s): {} will be installed. Continue? [y/n] ".format(
+        #         results[selection].name
+        #     ),
+        #     end="",
+        # )
+
+        (mods, path) = SteamDownloader.download([results[selection].steamid])
+
+
 
     @staticmethod
     def run():
         config = CLI.parse_options()
-        print(config.path)
         if config.path:
             config.path = PathFinder.find_game(config.path)
         if not config.path:
