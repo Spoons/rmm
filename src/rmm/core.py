@@ -1,803 +1,937 @@
 #!/bin/python3
-"""
-RimWorld Mod Manager
-
-Usage:
-  rmm backup <file>
-  rmm export [options] <file>
-  rmm import [options] <file>
-  rmm list [options]
-  rmm migrate [options]
-  rmm query [options] [<term>...]
-  rmm remove [options] [<term>...]
-  rmm search <term>...
-  rmm sync [options] [sync options] <name>...
-  rmm update [options] [sync options]
-  rmm -h | --help
-  rmm -v | --version
-
-Operations:
-  backup            Backups your mod directory to a tar, gzip,
-                      bz2, or xz archive. Type inferred by name.
-  export            Save mod list to file.
-  import            Install a mod list from a file.
-  list              List installed mods.
-  migrate           Remove mods from workshop and install locally.
-  query             Search installed mods.
-  remove            Remove installed mod.
-  search            Search Workshop.
-  sync              Install or update a mod.
-  update            Update all mods from Steam.
-
-Parameters
-  term              Name, author, steamid
-  file              File path
-  name              Name of mod.
-
-Sync Options:
-  -f --force        Force mod directory overwrite
-
-Options:
-  -p --path DIR     RimWorld path.
-  -w --workshop DIR Workshop Path.
-"""
-
 from __future__ import annotations
 
+import csv
 import importlib.metadata
 import os
+import re
+import shutil
+import subprocess
 import sys
-import tempfile
 import urllib.request
 import xml.etree.ElementTree as ET
-from enum import Enum
+from abc import ABC, abstractmethod
+from collections.abc import MutableSequence
 from multiprocessing import Pool
-from typing import Iterable, Optional, cast
+from pathlib import Path
+from typing import Any, Callable, Generator, Iterable, Iterator, Optional, cast
+from xml.dom import minidom
 
-import docopt
+import tabulate
 from bs4 import BeautifulSoup
 
-from rmm.utils.processes import execute, run_sh
 
-__version__ = importlib.metadata.version('rmm-spoons')
+class Useage:
+    """
+    RimWorld Mod Manager
+
+    Usage:
+    rmm backup <file>
+    rmm export [options] <file>
+    rmm import [options] <file>
+    rmm list [options]
+    rmm migrate [options]
+    rmm query [options] [<term>...]
+    rmm remove [options] [<term>...]
+    rmm search <term>...
+    rmm sync [options] [sync options] <name>...
+    rmm update [options] [sync options]
+    rmm -h | --help
+    rmm -v | --version
+
+    Operations:
+    backup            Backups your mod directory to a tar, gzip,
+                        bz2, or xz archive. Type inferred by name.
+    export            Save mod list to file.
+    import            Install a mod list from a file.
+    list              List installed mods.
+    migrate           Remove mods from workshop and install locally.
+    query             Search installed mods.
+    remove            Remove installed mod.
+    search            Search Workshop.
+    sync              Install or update a mod.
+    update            Update all mods from Steam.
+
+    Parameters
+    term              Name, author, steamid
+    file              File path
+    name              Name of mod.
+
+    Sync Options:
+    -f --force        Force mod directory overwrite
+
+    Options:
+    -p --path DIR     RimWorld path.
+    -w --workshop DIR Workshop Path.
+    """
 
 
-DEFAULT_GAME_PATHS = [
-    "~/GOG Games/RimWorld",
-    "~/.local/share/Steam/steamapps/common/RimWorld",
-    "/Applications/Rimworld.app/Mods",
-    "~/Library/Application Support/Steam/steamapps/common/RimWorld"
-]
+class Util:
+    @staticmethod
+    def platform() -> Optional[str]:
+        unixes = ["linux", "darwin", "freebsd"]
 
-DEFAULT_CONFIG_PATH = ["~/Library/Application\ Support/Rimworld/"]
+        for n in unixes:
+            if sys.platform.startswith(n):
+                return "unix"
+        if sys.platform.startswith("win32"):
+            return "win32"
+
+        return None
+
+    @staticmethod
+    def execute(cmd) -> Generator[str, None, None]:
+        with subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+            text=True,
+            close_fds=True,
+            shell=True,
+        ) as proc:
+            for line in iter(proc.stdout.readline, b""):
+                yield line
+                if (r := proc.poll()) is not None:
+                    if r != 0:
+                        raise subprocess.CalledProcessError(r, cmd)
+                    break
+
+    @staticmethod
+    def run_sh(cmd: str) -> str:
+        return subprocess.check_output(cmd, text=True, shell=True).strip()
+
+    @staticmethod
+    def copy(source: Path, destination: Path, recursive: bool = False):
+        if recursive:
+            shutil.copytree(source, destination)
+        else:
+            shutil.copy2(source, destination, follow_symlinks=True)
+
+    @staticmethod
+    def move(source: Path, destination: Path):
+        shutil.move(source, destination)
+
+    @staticmethod
+    def remove(dest: Path):
+        shutil.rmtree(dest)
 
 
-class InvalidSelectionException(Exception):
-    pass
+class XMLUtil:
+    @staticmethod
+    def list_grab(element: str, root: ET.Element) -> Optional[list[str]]:
+        try:
+            return cast(
+                Optional[list[str]],
+                [n.text for n in cast(ET.Element, root.find(element)).findall("li")],
+            )
+        except AttributeError:
+            return None
+
+    @staticmethod
+    def element_grab(element: str, root: ET.Element) -> Optional[str]:
+        try:
+            return cast(ET.Element, root.find(element)).text
+        except AttributeError:
+            return None
+
+    @staticmethod
+    def et_pretty_xml(root: ET.Element) -> str:
+        return minidom.parseString(
+            re.sub(
+                r"[\n\t\s]*",
+                "",
+                (ET.tostring(cast(ET.Element, root), "utf-8").decode()),
+            )
+        ).toprettyxml(indent="  ", newl="\n")
 
 
 class Mod:
-    def __init__(self, name, steamid, versions, author, path, ignore=False):
-        self.name = name
-        self.versions = versions
-        self.author = author
-        self.steamid = steamid
+    def __init__(
+        self,
+        packageid: str,
+        before: Optional[list[str]] = None,
+        after: Optional[list[str]] = None,
+        incompatible: Optional[list[str]] = None,
+        path: Optional[Path] = None,
+        author: Optional[str] = None,
+        name: Optional[str] = None,
+        versions: Optional[list[str]] = None,
+        steamid: Optional[int] = None,
+        ignored: bool = False,
+        repo_url: Optional[str] = None,
+        workshop_managed: Optional[bool] = None,
+    ):
+        self.packageid = packageid
+        self.before = before
+        self.after = after
+        self.incompatible = incompatible
         self.path = path
-        self.ignore = ignore
+        self.author = author
+        self.name = name
+        self.ignored = ignored
+        self.steamid = steamid
+        self.versions = versions
+        self.repo_url = repo_url
+        self.workshop_managed = workshop_managed
 
-    def __repr__(self):
-        return "<Mod name:{} author:{} steamid:{} dir:{} ignore:{}>".format(
-            self.name,
-            self.author,
-            self.steamid,
-            os.path.basename(self.path),
-            self.ignore,
-        )
-
-    def __cell__(self):
-        return [
-            self.name,
-            self.author[:30],
-            self.steamid,
-            os.path.basename(self.path),
-            self.ignore,
-        ]
-
-    def __eq__(self, other: Mod):
-        if isinstance(other, Mod):
-            if self.steamid is not None and other.steamid is not None:
-                return self.steamid == other.steamid
-            if self.name is not None and other.name is not None:
-                name_match = self.name == other.name
-
-                author_match = None
-                if self.author is not None and other.author is not None:
-                    author_match = self.author == other.author
-
-                if author_match is not None:
-                    return name_match and author_match
-                else:
-                    return name_match
-
-    def remove(self):
-        if self.ignore:
-            return
-        run_sh(f"rm -rf {self.path}")
-
-    def install(self, install_path):
-        if self.ignore:
-            return
-        else:
-            run_sh(f"cp -r {self.path} {install_path}")
-
-    def update_parent_dir(self, new_path):
-        self.path = os.path.join(new_path, str(self.steamid))
-        self.check_for_ignore()
-
-    def check_for_ignore(self):
-        if os.path.isfile(os.path.join(self.path, ".rmm_ignore")):
-            self.ignore = True
-        else:
-            self.ignore = False
-
-    @classmethod
-    def create_from_path(cls, filepath) -> Optional[Mod]:
+    @staticmethod
+    def create_from_path(dirpath) -> Optional[Mod]:
         try:
-            tree = ET.parse(os.path.join(filepath, "About/About.xml"))
+            tree = ET.parse(dirpath / "About/About.xml")
             root = tree.getroot()
-            name = root.find("name").text
-            author = root.find("author").text
+
             try:
-                versions = [
-                    v.text for v in root.find("supportedVersions").findall("li")
-                ]
+                packageid = cast(str, cast(ET.Element, root.find("packageId")).text)
             except AttributeError:
-                versions = None
-        except (FileNotFoundError, NotADirectoryError) as e:
+                return None
+
+            def read_steamid(path: Path) -> Optional[int]:
+                try:
+                    return int((path / "About" / "PublishedFileId.txt").read_text())
+                except (OSError, ValueError) as e:
+                    print(e)
+                    return None
+
+            def read_ignored(path: Path):
+                try:
+                    return (path / ".rmm_ignore").is_file()
+                except (OSError) as e:
+                    print(e)
+                    return False
+
+            return Mod(
+                packageid,
+                before=XMLUtil.list_grab("loadAfter", root),
+                after=XMLUtil.list_grab("loadBefore", root),
+                incompatible=XMLUtil.list_grab("incompatibleWith", root),
+                path=dirpath,
+                author=XMLUtil.element_grab("author", root),
+                name=XMLUtil.element_grab("name", root),
+                versions=XMLUtil.list_grab("supportedVersions", root),
+                steamid=read_steamid(dirpath),
+                ignored=read_ignored(dirpath),
+            )
+
+        except OSError as e:
+            print(f"Could not read {dirpath}")
             return None
 
-        try:
-            with open(os.path.join(filepath, "About/PublishedFileId.txt")) as f:
-                steamid = f.readline().strip()
-        except FileNotFoundError:
-            steamid = None
+    def __eq__(self, other):
+        if isinstance(other, Mod):
+            return self.packageid == other.packageid
+        if isinstance(other, str):
+            return self.packageid == other
+        return NotImplemented
 
-        ignore = False
-        if os.path.isfile(os.path.join(filepath, ".rmm_ignore")):
-            ignore = True
-        return Mod(name, steamid, versions, author, filepath, ignore=ignore)
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return f"<Mod: '{self.packageid}'>"
 
 
-class ModList:
-    @classmethod
-    def _get_mods_list(cls, path: str, f: Iterable) -> list[Mod]:
-        paths = [os.path.join(path, d) for d in f]
+class ModStub(Mod):
+    def __init__(self, steamid):
+        super().__init__("", steamid=steamid)
+
+    def __str__(self):
+        return f"<ModStub: '{self.steamid}'>"
+
+
+class ModList(MutableSequence):
+    def __init__(self, data: Iterable[Mod], name: Optional[str] = None):
+        if not isinstance(data, MutableSequence):
+            self.data = list(data)
+        else:
+            self.data = data
+        self.name = name
+
+    def __getitem__(self, key: int) -> Mod:
+        return self.data[key]
+
+    def __setitem__(self, key: int, value: Mod) -> None:
+        self.data[key] = value
+
+    def __delitem__(self, key: int) -> None:
+        del self.data[key]
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def insert(self, i, x) -> None:
+        self.data[i] = x
+
+    def __repr__(self):
+        return f"<ModList: {self.data.__repr__()}>"
+
+
+class ModFolderReader:
+    @staticmethod
+    def create_mods_list(path: Path) -> ModList:
         with Pool(16) as p:
             mods = filter(
                 None,
                 p.map(
                     Mod.create_from_path,
-                    paths,
+                    path.iterdir(),
                 ),
             )
-        return list(mods)
+        return ModList(mods)
+
+
+class ModListSerializer(ABC):
+    @classmethod
+    @abstractmethod
+    def parse(cls, text: str) -> Generator[Mod, None, None]:
+        pass
 
     @classmethod
-    def get_mods_list_by_path(cls, path: str) -> list[Mod]:
-        return cls._get_mods_list(path, os.listdir(path))
+    @abstractmethod
+    def serialize(cls, mods: MutableSequence) -> Generator[str, None, None]:
+        pass
+
+
+class CsvStringBuilder:
+    def __init__(self):
+        self.value = []
+
+    def write(self, row: str) -> None:
+        self.value.append(row)
+
+    def pop(self) -> None:
+        return self.value.pop()
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.value)
+
+
+class ModListV2Format(ModListSerializer):
+    HEADER = {"PACKAGE_ID": 0, "STEAM_ID": 1, "REPO_URL": 2}
+    MAGIC_FLAG = "RMM_V2_MODLIST"
 
     @classmethod
-    def get_mods_list_filter_by_id(cls, path: str, mods: list[int]) -> list[Mod]:
-        return cls._get_mods_list(path, [str(m) for m in mods])
+    def parse(cls, text: str) -> Generator[Mod, None, None]:
+        reader = csv.reader(text.split("\n"))
+        for parsed in reader:
+            try:
+                yield Mod(
+                    parsed[cls.HEADER["PACKAGE_ID"]],
+                    steamid=int(parsed[cls.HEADER["STEAM_ID"]]),
+                    repo_url=parsed[cls.HEADER["REPO_URL"]] if not "" else None,
+                )
+            except (ValueError, IndexError):
+                print("Unable to import: ", parsed)
+                continue
 
     @classmethod
-    def get_mods_list_names(cls, mods: list[Mod]) -> list[str]:
-        return [n.name for n in mods]
-
-    @classmethod
-    def get_by_id(cls, mods: list[Mod], steamid: int):
-        for n in mods:
-            if n.steamid == steamid:
-                return n
-        return None
-
-    @classmethod
-    def get_by_name(cls, mods: list[Mod], name: str):
-        for n in mods:
-            if n.name == name:
-                return n
-        return None
-
-    @classmethod
-    def to_int_list(cls, mods: list[Mod]) -> list[int]:
-        return list(filter(None, cast(list[int], [m.steamid for m in mods])))
-
-
-class ModListFile:
-    @classmethod
-    def read_text_modlist(cls, path: str) -> list[int]:
-        mods = []
-        with open(path) as f:
-            for line in f:
-                itemid = line.split("#", 1)[0]
-                try:
-                    mods.append(int(itemid))
-                except ValueError:
-                    continue
-        return mods
-
-    @classmethod
-    def export_text_modlist(cls, mods: list[Mod], human_format: bool = True) -> str:
-        output = ""
+    def serialize(cls, mods: MutableSequence) -> Generator[str, None, None]:
+        buffer = CsvStringBuilder()
+        writer = csv.writer(cast(Any, buffer))
         for m in mods:
-            if human_format:
-                output += "{} #{} by {}\n".format(m.steamid, m.name, m.author)
-            else:
-                output += "{}".format(m.steamid)
-        return output
+            writer.writerow(cls.format(m))
+            yield buffer.pop().strip()
 
     @classmethod
-    def write_text_modlist(cls, mods: list[Mod], path: str) -> None:
-        with open(path, "w") as f:
-            f.write(cls.export_text_modlist(mods))
+    def format(cls, mod: Mod) -> list[str]:
+        return cast(
+            list[str],
+            [
+                mod.packageid,
+                str(mod.steamid) if not None else "",
+                mod.repo_url if not None else "",
+            ],
+        )
+
+
+class ModListV1Format(ModListSerializer):
+    STEAM_ID = 0
+
+    @classmethod
+    def parse(cls, text: str) -> Generator[Mod, None, None]:
+        for line in text.split("\n"):
+            parsed = line.split("#", 1)
+            try:
+                yield ModStub(
+                    int(parsed[cls.STEAM_ID]),
+                )
+            except ValueError:
+                if line:
+                    print("Unable to import: ", line)
+                continue
+
+    @classmethod
+    def serialize(cls, mods: MutableSequence) -> Generator[str, None, None]:
+        for m in mods:
+            yield cls.format(m)
+
+    @classmethod
+    def format(cls, mod: Mod) -> str:
+        return "{}# {} by {} ".format(str(mod.steamid), mod.name, mod.author)
+
+
+class ModListStreamer:
+    @staticmethod
+    def read(path: Path, serializer: ModListSerializer) -> Optional[MutableSequence]:
+        try:
+            with path.open("r") as f:
+                text = f.read()
+        except OSError as e:
+            print(e)
+            return None
+
+        return [m for m in serializer.parse(text)]
+
+    @staticmethod
+    def write(path: Path, mods: MutableSequence, serializer: ModListSerializer):
+        try:
+            with path.open("w+") as f:
+                [f.write(line + "\n") for line in serializer.serialize(mods)]
+        except OSError as e:
+            print(e)
+            return False
+        return True
 
 
 class SteamDownloader:
-    @classmethod
-    def download(cls, mods, folder):
+    def __init__(self, folder: Path):
+        self.home_path = folder
+        self.mod_path = folder / ".steam/steamapps/workshop/content/294100/"
+
+    def _get(self, mods: MutableSequence):
         def workshop_format(mods):
             return (s := " +workshop_download_item 294100 ") + s.join(
-                str(x) for x in mods
+                m.steamid for m in mods if not None
             )
 
         query = 'env HOME="{}" steamcmd +login anonymous "{}" +quit >&2'.format(
-            folder, workshop_format(mods)
+            str(self.home_path), workshop_format(mods)
         )
-        run_sh(query)
-        print()
+        return Util.run_sh(query)
 
-    @classmethod
-    def download_modlist(cls, mods, path):
-        steamids = [n.steamid for n in mods]
-        return cls.download(steamids, path)
+    def download(self, mods: MutableSequence[Mod]) -> ModList:
+        self._get(mods)
+        return ModFolderReader.create_mods_list(self.home_path)
 
 
-class WorkshopResultsEnum(Enum):
-    TITLE = 0
-    AUTHOR = 1
-    STEAMID = 2
+class WorkshopResult:
+    def __init__(
+        self,
+        steamid,
+        name=None,
+        author=None,
+        description=None,
+        update_time=None,
+        size=None,
+        num_rating=None,
+        rating=None,
+        create_time=None,
+        num_ratings=None,
+    ):
+        self.steamid = steamid
+        self.name = name
+        self.author = author
+        self.description = description
+        self.update_time = update_time
+        self.size = size
+        self.create_time = create_time
+        self.num_ratings = num_ratings
+        self.rating = rating
+
+    def __str__(self):
+        return "\n".join(
+            [
+                prop + ": " + str(getattr(self, prop))
+                for prop in self.__dict__
+                if not callable(self.__dict__[prop])
+            ]
+        )
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __eq__(self, other: WorkshopResult) -> bool:
+        if not isinstance(other, WorkshopResult):
+            raise NotImplementedError
+        return self.steamid == other.steamid
+
+    def _merge(self, other: WorkshopResult):
+        if not isinstance(other, WorkshopResult):
+            raise NotImplementedError
+        for prop in other.__dict__:
+            if (
+                not callable(other.__dict__[prop])
+                and hasattr(self, prop)
+                and getattr(other, prop)
+            ):
+                setattr(self, prop, (getattr(other, prop)))
+
+    def get_details(self):
+        self._merge(WorkshopWebScraper.detail(self.steamid))
+        return self
 
 
 class WorkshopWebScraper:
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.81 Safari/537.36"
     }
+    index_query = (
+        "https://steamcommunity.com/workshop/browse/?appid=294100&searchtext={}"
+    )
+    detail_query = "https://steamcommunity.com/sharedfiles/filedetails/?id={}"
 
     @classmethod
-    def scrape_update_date(cls, mod):
-        resp = req.get(
-            "https://steamcommunity.com/sharedfiles/filedetails/?id={}".format(
-                mod.steamid
+    def _request(cls, url: str, term: str):
+        return urllib.request.urlopen(
+            urllib.request.Request(
+                url.format(term.replace(" ", "+")),
+                headers=WorkshopWebScraper.headers,
             )
         )
-        soup = BeautifulSoup(resp.content, "html.parser")
-        return list(soup.find_all("div", class_="detailsStatRight"))[2].get_text()
 
     @classmethod
-    def workshop_search(cls, name):
-        name = name.replace(" ", "+")
-        request = urllib.request.Request(
-            "https://steamcommunity.com/workshop/browse/?appid=294100&searchtext={}".format(
-                name
-            ),
-            headers=WorkshopWebScraper.headers,
-        )
-        resp = urllib.request.urlopen(request)
-        soup = BeautifulSoup(resp, "html.parser")
-        items = soup.find_all("div", class_="workshopItem")
-        results = []
-        import re
-
-        for n in items:
-            item_title = n.find("div", class_="workshopItemTitle").get_text()
-            author_name = n.find("div", class_="workshopItemAuthorName").get_text()
-            steamid = int(re.search(r"\d+", n.find("a", class_="ugc")["href"]).group())
-            results.append((item_title, author_name, steamid))
-        return results
-
-
-class Manager:
-    def __init__(self, moddir, workshop_path):
-        self.workshop_path = workshop_path
-        self.moddir = moddir
-        self.cachedir = None
-
-        for dirs in os.listdir("/tmp"):
-            if (
-                dirs[0:4] == "rmm-"
-                and os.path.isdir(os.path.join("/tmp", dirs))
-                and ".rmm" in os.listdir(os.path.join("/tmp", dirs))
-            ):
-                self.cachedir = os.path.join("/tmp", dirs)
-
-        if not self.cachedir:
-            self.cachedir = tempfile.mkdtemp(prefix="rmm-")
-            with open(os.path.join(self.cachedir, ".rmm"), "w"):
-                pass
-
-        self.cache_content_dir = os.path.join(
-            self.cachedir, ".steam/steamapps/workshop/content/294100/"
+    def detail(cls, steamid: int):
+        results = BeautifulSoup(
+            cls._request(cls.detail_query, str(steamid)),
+            "html.parser",
         )
 
-    def get_mods_as_list(self) -> list[Mod]:
-        if (
-            self.workshop_path
-            and (workshop_mods := self.get_mods_as_list_workshop()) is not None
-        ):
-            return self.get_mods_as_list_native() + workshop_mods
-        return self.get_mods_as_list_native()
+        details = results.find_all("div", class_="detailsStatRight")
+        try:
+            size = details[0].get_text()
+        except IndexError:
+            size = None
+        try:
+            created = details[1].get_text()
+        except IndexError:
+            created = None
+        try:
+            updated = details[2].get_text()
+        except IndexError:
+            updated = None
+        try:
+            description = results.find(
+                "div", class_="workshopItemDescription"
+            ).get_text()
+        except AttributeError:
+            description = None
+        try:
+            num_ratings = results.find("div", class_="numRatings").get_text()
+        except AttributeError:
+            num_ratings = None
+        try:
+            rating = re.search(
+                "([1-5])(?:-star)",
+                str(results.find("div", class_="fileRatingDetails").img),
+            ).group(1)
+        except AttributeError:
+            rating = None
 
-    def get_mods_as_list_workshop(self) -> list[Mod]:
-        return ModList.get_mods_list_by_path(self.workshop_path)
-
-    def get_mods_as_list_native(self) -> list[Mod]:
-        return ModList.get_mods_list_by_path(self.moddir)
-
-    def get_mods_names(self) -> list[str]:
-        return ModList.get_mods_list_names(self.get_mods_as_list())
-
-    def backup_mod_dir(self, tarball_fp):
-        query = '(cd {}; tar -vcaf "{}" ".")'.format(self.moddir, tarball_fp)
-        for line in execute(query):
-            print(line, end="")
-
-    def sync_mod_list(
-        self,
-        mod_list: list[int],
-        force_native: bool = False,
-        force_overwrite: bool = False,
-    ) -> bool:
-        SteamDownloader().download(mod_list, self.cachedir)
-        install_queue_mods = ModList.get_mods_list_filter_by_id(
-            self.cache_content_dir, mod_list
-        )
-        native_mods = self.get_mods_as_list_native()
-        workshop_mods = None
-        if self.workshop_path:
-            workshop_mods = self.get_mods_as_list_workshop()
-
-        def remove_mod_and_get_path(
-            modlist: Optional[list[Mod]], mod: Mod, is_workshop: bool = False
-        ):
-            if not modlist:
-                return None
-            if mod in modlist:
-                ret_mod = [a for a in modlist if a == mod]
-                if len(ret_mod) == 1:
-                    ret_mod = ret_mod[0]
-                elif len(ret_mod) > 1:
-                    print("Duplicate mods found:")
-                    for n in ret_mod:
-                        print(n.path)
-                    print("Use rmm remove to delete them")
-                    raise Exception("Duplicate mods found")
-                ret_mod = cast(Mod, ret_mod)
-                if not ret_mod.ignore and ret_mod.steamid:
-                    print(f"Removing {ret_mod.name}")
-                    ret_mod.remove()
-                if is_workshop and force_native:
-                    return None
-                return (os.path.join(self.moddir, ret_mod.path), ret_mod)
-            else:
-                return None
-
-        for queue_current_mod in install_queue_mods:
-            install_path_native = remove_mod_and_get_path(
-                native_mods, queue_current_mod, is_workshop=False
-            )
-            install_path_workshop = remove_mod_and_get_path(
-                workshop_mods, queue_current_mod, is_workshop=True
-            )
-
-            install_path = None
-            install_tuple = install_path_native if not None else install_path_workshop
-            if install_tuple is not None:
-                install_path = install_tuple[0]
-                mod_to_replace = install_tuple[1]
-                if mod_to_replace.ignore:
-                    print(f"Skipping {queue_current_mod.name}: .rmm_ignore file")
-                    continue
-                if (
-                    mod_to_replace
-                    and mod_to_replace.steamid is None
-                    and not force_overwrite
-                ):
-                    print(
-                        f"Skipping {queue_current_mod.name}: missing PubishedFileId.txt\n",
-                        "Use the -f flag to force overwrite.",
-                    )
-                    continue
-
-            if not install_path:
-                install_path = os.path.join(self.moddir, queue_current_mod.steamid)
-
-            if os.path.isdir(install_path) or os.path.isfile(install_path):
-                if force_overwrite:
-                    print(
-                        f"Removing directory '{install_path}' as per force (-f) flag."
-                    )
-                    run_sh(f'rm -r "{install_path}"')
-                else:
-                    print(
-                        f"Skipping {queue_current_mod.name}:",
-                        "  Conflicting directory not associated with mod: {install_path}\n",
-                        "  Use the -f flag to force overwrite.",
-                    )
-                    continue
-            print(f"Installing {queue_current_mod.name}")
-            queue_current_mod.install(install_path)
-
-    def sync_mod(self, steamid: int, force_overwrite=False) -> bool:
-        return self.sync_mod_list([steamid], force_overwrite=force_overwrite)
-
-    def sync_mod_list_file(self, modlist_fp):
-        return self.sync_mod_list(ModListFile.read_text_modlist(modlist_fp))
-
-    def update_all_mods(self, force_overwrite=False):
-        self.sync_mod_list(
-            ModList.to_int_list(self.get_mods_as_list()),
-            force_overwrite=force_overwrite,
+        return WorkshopResult(
+            steamid,
+            size=size,
+            create_time=created,
+            update_time=updated,
+            description=description,
+            num_rating=num_ratings,
+            rating=rating,
         )
 
-    def migrate_all_mods(self):
-        self.sync_mod_list(
-            ModList.to_int_list(self.get_mods_as_list()), force_native=True
+    @classmethod
+    def search(cls, term: str, details: bool = False) -> Generator[WorkshopResult, None, None]:
+        results = BeautifulSoup(
+            cls._request(cls.index_query, term),
+            "html.parser",
+        ).find_all("div", class_="workshopItem")
+
+        for r in results:
+            try:
+                item_title = r.find("div", class_="workshopItemTitle").get_text()
+                author_name = r.find("div", class_="workshopItemAuthorName").get_text()[3:]
+                steamid = int(
+                    re.search(r"\d+", r.find("a", class_="ugc")["href"]).group()
+                )
+            except (AttributeError, ValueError):
+                continue
+            print("grabbing " + item_title)
+            result = WorkshopResult(steamid, name=item_title, author=author_name)
+            if details:
+                detailsResult = WorkshopWebScraper.detail(steamid)
+                if detailsResult:
+                    result._merge(detailsResult)
+            yield result
+
+class Configuration:
+    """
+    [Paths]
+    rimworld: somepath
+    workshop: somepath
+
+    [Options]
+    use_human_readable_dirs: false
+    ignore_git_directories: false
+
+    [Rules]
+    1: *vanilla* > *
+    """
+
+    pass
+
+
+class PathFinder:
+    DEFAULT_GAME_PATHS = [
+        "~/GOG Games/RimWorld",
+        "~/.local/share/Steam/steamapps/common/RimWorld",
+        "/Applications/Rimworld.app/Mods",
+    ]
+
+    DEFAULT_WORKSHOP_PATHS = ["~/.local/share/Steam/steamapps/workshop/content/294100"]
+
+    DEFAULT_CONFIG_PATHS = [
+        "~/Library/Application Support/Rimworld/",
+        "~/.config/unity3d/Ludeon Studios/RimWorld by Ludeon Studios",
+    ]
+
+    @staticmethod
+    def _is_game_dir(p: Path) -> bool:
+        if p.name == "Mods":
+            for n in p.parent.iterdir():
+                if n.name == "Version.txt":
+                    return True
+        return False
+
+    @staticmethod
+    def _is_workshop_dir(p: Path) -> bool:
+        return (
+            p.name == "294100"
+            and p.parts[-2] == "content"
+            and p.parts[-3] == "workshop"
         )
 
-    def remove_mod_list(self, modlist: list[Mod]) -> bool:
-        for m in modlist:
-            print("Removing {} by {}...".format(m.name, m.author))
-            m.remove()
+    @staticmethod
+    def _is_config_dir(p: Path) -> bool:
+        files_to_find = ["Config", "prefs", "Saves"]
+        child_names = [f.name for f in p.iterdir()]
+        for target_name in files_to_find:
+            if not target_name in child_names:
+                return False
         return True
 
-    def get_mod_table(self):
-        import tabulate
+    @staticmethod
+    def _search_root(p: Path, f) -> Optional[Path]:
+        p = p.expanduser()
+        for n in p.glob("**/"):
+            if f(n):
+                return n
+        return None
 
-        return tabulate.tabulate(
-            [m.__cell__() for m in self.get_mods_as_list()],
-            headers=["Name", "Author", "SteamID", "Dir", "Ignored"],
+    @staticmethod
+    def get_workshop_from_game_path(p: Path):
+        p = p.expanduser()
+        for index, dirname in enumerate(p.parts):
+            if dirname == "steamapps":
+                return Path(*list(p.parts[0:index])) / Path(
+                    "steamapps/workshop/content/294100"
+                )
+
+    @staticmethod
+    def _search_defaults(defaults: list[str], f) -> Optional[Path]:
+        for p in defaults:
+            if p := f(Path(p)):
+                return p
+        return None
+
+    @classmethod
+    def find_game(cls, p: Path) -> Optional[Path]:
+        return cls._search_root(p, cls._is_game_dir)
+
+    @classmethod
+    def find_workshop(cls, p: Path) -> Optional[Path]:
+        return cls._search_root(p, cls._is_workshop_dir)
+
+    @classmethod
+    def find_config(cls, p: Path) -> Optional[Path]:
+        return cls._search_root(p, cls._is_config_dir)
+
+    @classmethod
+    def find_game_defaults(cls) -> Optional[Path]:
+        return cls._search_defaults(cls.DEFAULT_GAME_PATHS, cls.find_game)
+
+    @classmethod
+    def find_workshop_defaults(cls) -> Optional[Path]:
+        return cls._search_defaults(cls.DEFAULT_WORKSHOP_PATHS, cls.find_workshop)
+
+    @classmethod
+    def find_config_defaults(cls) -> Optional[Path]:
+        return cls._search_defaults(cls.DEFAULT_CONFIG_PATHS, cls.find_config)
+
+
+class Config:
+    def __init__(
+        self, path: Optional[Path] = None, workshop_path: Optional[Path] = None
+    ):
+        self.path = cast(Path, path)
+        self.workshop_path = workshop_path
+
+
+class ModsConfig:
+    def __init__(self, p: Path):
+        if isinstance(p, str):
+            p = Path(p)
+        self.path = p.expanduser()
+        try:
+            self.element_tree = ET.parse(self.path)
+        except OSError:
+            print("Unable to read ModsConfig file at " + str(self.path))
+            raise
+
+        self.root = self.element_tree.getroot()
+        try:
+            enabled = cast(
+                list[str],
+                XMLUtil.list_grab("activeMods", cast(ET.ElementTree, self.root)),
+            )
+            self.mods = [Mod(pid) for pid in enabled]
+        except TypeError:
+            print("Unable to parse activeMods in ModsConfig")
+            raise
+        self.version = XMLUtil.element_grab("version", self.root)
+        self.length = len(self.mods)
+
+    def write(self):
+        active_mods = self.root.find("activeMods")
+        try:
+            for item in list(active_mods.findall("li")):
+                active_mods.remove(item)
+        except AttributeError:
+            pass
+
+        try:
+            for mod in self.mods:
+                new_element = ET.SubElement(active_mods, "li")
+                new_element.text = mod.packageid
+        except AttributeError:
+            raise Exception("Unable to find 'activeMods' in ModsConfig")
+
+        buffer = XMLUtil.et_pretty_xml(self.root)
+        print(buffer)
+
+        try:
+            with self.path.open("w+") as f:
+                f.seek(0)
+                f.write(buffer)
+        except OSError:
+            print("Unable to write ModsConfig")
+            raise
+
+    def enable_mod(self, m: Mod):
+        self.mods.append(m)
+
+    def remove_mod(self, m: Mod):
+        for k, v in enumerate(self.mods):
+            if self.mods[k] == m:
+                del self.mods[k]
+
+
+class DefAnalyzer:
+    pass
+
+
+class GraphAnalyzer:
+    @staticmethod
+    def graph(mods):
+        import networkx as nx
+        import pyplot as plt
+
+        DG = nx.DiGraph()
+
+        ignore = ["brrainz.harmony", "UnlimitedHugs.HugsLib"]
+        for m in mods:
+            if m.after:
+                for a in m.after:
+                    if a in mods:
+                        if not a in ignore and not m.packageid in ignore:
+                            DG.add_edge(a, m.packageid)
+            if m.before:
+                for b in m.before:
+                    if b in mods:
+                        if not b in ignore and not m.packageid in ignore:
+                            DG.add_edge(m.packageid, b)
+
+        pos = nx.spring_layout(DG, seed=56327, k=0.8, iterations=15)
+        nx.draw(
+            DG,
+            pos,
+            node_size=100,
+            alpha=0.8,
+            edge_color="r",
+            font_size=8,
+            with_labels=True,
         )
+        ax = plt.gca()
+        ax.margins(0.08)
+
+        print("topological sort:")
+        sorted = list(nx.topological_sort(DG))
+        for n in sorted:
+            print(n)
+
+        plt.show()
 
 
 class CLI:
-    def __init__(self):
-        self.path = None
-        self.workshop_path = None
+    @staticmethod
+    def tabulate_mods(mods: ModList) -> str:
+        return tabulate.tabulate(
+            [[n.name, n.author[:20], n.steamid, n.ignored, n.path.name] for n in mods],
+            headers=["name", "author", "steamid", "ignored", "folder"],
+        )
 
+    @staticmethod
+    def __find_in_mixed_str_tuple_list(word, _list):
+        for item in _list:
+            if isinstance(item, tuple):
+                if word in list(item):
+                    return item[0]
+            if isinstance(item, str):
+                if word == item:
+                    return word
+        return None
+
+    @staticmethod
+    def parse_options() -> Config:
+        path_options = [("path", "--path", "-p"), ("workshop_path", "--workshop", "-w")]
+
+        config = Config()
+        del sys.argv[0]
         try:
-            arguments = docopt.docopt(__doc__, version=f"RMM {__version__}")
-        except docopt.DocoptExit:
-            arguments = {}
-            print(__doc__)
-            if len(sys.argv) > 1:
-                print("Invalid syntax. You may have too many or too little argument.")
-                sys.exit(1)
-            if len(sys.argv) > 0:
-                sys.exit(0)
+            while s := CLI.__find_in_mixed_str_tuple_list(
+                sys.argv[0], [p[1:] for p in path_options]
+            ):
+                del sys.argv[0]
+                setattr(config, s, Path(sys.argv[0]))
+                del sys.argv[0]
+        except IndexError:
+            pass
 
-        if arguments['-v']:
-            print(f"RMM {__version__}")
-            sys.exit(0)
+        # flag_options = [()]
+        # try:
+        #     while s:= CLI.__find_in_mixed_str_tuple_list(sys.argv[0], f[1:] for f in flag_options):
+        #         del sys.argv[0]
+        #         config[s] = True
+        # except IndexError:
+        #     pass
+        #
+        return config
 
-        def check_default_paths():
-            for path in DEFAULT_GAME_PATHS:
-                p = os.path.expanduser((os.path.join(path, "game", "Mods")))
-                if os.path.isdir(p):
-                    return p
-            return None
+    @staticmethod
+    def help(args: list, config: Config):
+        print(Useage.__doc__)
 
-        def find_game(path):
-            if not os.path.basename(path) == "Mods":
-                for root, dirs, files in os.walk(path):
-                    if os.path.basename(root) == "Mods" and os.path.isfile(
-                        os.path.join(root, "..", "Version.txt")
-                    ):
-                        return os.path.join(root)
-            return None
+    @staticmethod
+    def version(args: list, config: Config):
+        try:
+            print(importlib.metadata.version("rmm-spoons"))
+        except importlib.metadata.PackageNotFoundError:
+            print("version unknown")
 
-        if arguments["--path"]:
-            self.path = arguments["--path"]
-            self.path = find_game(self.path)
+    @staticmethod
+    def _list(args, config: Config):
+        print(CLI.tabulate_mods(ModFolderReader.create_mods_list(config.path)))
 
-        if not self.path:
-            try:
-                self.path = os.path.expanduser(os.environ["RMM_PATH"])
-                self.path = find_game(self.path)
-            except KeyError:
-                self.path = None
-
-        if not self.path and (arguments["--path"] or "RMM_PATH" in os.environ):
-            print(
-                "The specified RimWorld path does not appear to contain RimWorld and a Mods folder."
+    @staticmethod
+    def query(args, config: Config):
+        search_term = " ".join(args[1:])
+        print(
+            CLI.tabulate_mods(
+                ModList(
+                    [
+                        r
+                        for r in ModFolderReader.create_mods_list(config.path)
+                        if str.lower(search_term) in str.lower(r.name)
+                        or str.lower(search_term) in str.lower(r.author)
+                        or search_term == r.steamid
+                    ]
+                )
             )
+        )
 
-        if not self.path:
-            print("Trying default directories...")
-            self.path = check_default_paths()
+    @staticmethod
+    def search(args: list[str], config: Config):
+        results = reversed(list(WorkshopWebScraper.search(" ".join(args[1:]))))
+        # print(tabulate.tabulate([[r.name, r.author, r.num_ratings, r.description] for r in resultsGenerator]))
+        [print(f"{r.name} by {r.author}") for r in results]
 
-        if not self.path:
-            print("Could not find RimWorld. Exiting...",
-                  "\nSet the path to the game using -p or the RMM_PATH environment variable.")
-            exit(1)
-
-        print("rimworld path: {}".format(self.path))
-
-        def find_workshop(path):
-            if not os.path.basename(path) == "294100" and "Steam" in path:
-                if os.path.isdir(
-                    s := os.path.join(
-                        "".join(path.partition("Steam/")[0:2]),
-                        "steamapps/workshop/content/294100",
-                    )
-                ):
-                    return path
-                return None
-
-        def find_workshop_from_game_path(path):
-            if "/steamapps/common" in path:
-                if os.path.isdir(
-                    s := os.path.join(
-                        "".join(path.partition("/steamapps")[0:2]),
-                        "workshop/content/294100",
-                    )
-                ):
-                    return s
-            return None
-
-        if arguments["--workshop"]:
-            self.workshop_path = arguments["--workshop"]
-        else:
+    @staticmethod
+    def run():
+        config = CLI.parse_options()
+        if config.path:
+            config.path = PathFinder.find_game(config.path)
+        if not config.path:
             try:
-                self.workshop_path = os.path.expanduser(os.environ["RMM_WORKSHOP_PATH"])
-            except KeyError as err:
-                self.workshop_path = None
+                config.path = PathFinder.find_game(Path(os.environ["RMM_PATH"]))
+            except KeyError:
+                config.path = PathFinder.find_game_defaults()
 
-        if self.workshop_path:
-            self.workshop_path = find_workshop(self.workshop_path)
-        else:
-            self.workshop_path = find_workshop_from_game_path(self.path)
+        if config.workshop_path:
+            config.workshop_path = PathFinder.find_workshop(Path(config.workshop_path))
 
-        if self.workshop_path:
-            print(f"workshop path: {self.workshop_path}\n")
-        else:
-            print(f"workshop path {self.workshop_path} not found. ignoring.")
-            self.workshop_path = None
+        if not config.workshop_path:
+            try:
+                config.workshop_path = PathFinder.find_workshop(
+                    Path(os.environ["RMM_WORKSHOP_PATH"])
+                )
+            except KeyError:
+                if config.path:
+                    config.workshop_path = PathFinder.get_workshop_from_game_path(
+                        Path(config.path)
+                    )
+                else:
+                    config.workshop_path = PathFinder.find_workshop_defaults()
 
-        if arguments["--force"]:
-            self.force_overwrite = True
-        else:
-            self.force_overwrite = False
-
-        for command in [
+        actions = [
+            "backup",
             "export",
-            "import",
             "list",
-            "migrate",
             "query",
             "remove",
             "search",
             "sync",
             "update",
-        ]:
-            if arguments[command] == True:
-                if command == "import":
-                    command = '_import'
-                    
-                getattr(self, command)(arguments)
-
-    def search(self, arguments):
-        results = WorkshopWebScraper.workshop_search(" ".join(arguments["<term>"]))
-        from tabulate import tabulate
-
-        print(tabulate(reversed(results)))
-
-    def export(self, arguments):
-        mods = Manager(self.path, self.workshop_path).get_mods_as_list()
-        if arguments["<file>"] != "-":
-            ModListFile.write_text_modlist(mods, arguments["<file>"])
-            print("Mod list written to {}.\n".format(arguments["<file>"]))
-        else:
-            print(ModListFile.export_text_modlist(mods))
-
-    def list(self, arguments):
-        if not (s := Manager(self.path, self.workshop_path).get_mod_table()):
-            print("No mods installed. Add them using the 'sync' command.")
-        else:
-            print(s)
-
-    def _import(self, arguments):
-        file = arguments["<file>"]
-        Manager(self.path, self.workshop_path).sync_mod_list_file(file)
-
-    def sync(self, arguments):
-        search_term = " ".join(arguments["<name>"])
-
-        results = WorkshopWebScraper.workshop_search(search_term)
-        for n, element in enumerate(reversed(results)):
-            n = abs(n - len(results))
-            print(
-                "{}. {} {}".format(
-                    n,
-                    element[WorkshopResultsEnum.TITLE.value],
-                    element[WorkshopResultsEnum.AUTHOR.value],
-                )
-            )
-        print("Packages to install (eg: 1 2 3, 1-3 or ^4)")
-
-        while True:
-            try:
-                selection = int(input()) - 1
-                if selection >= len(results) or selection < 0:
-                    raise InvalidSelectionException("Out of bounds")
-                break
-            except ValueError:
-                print("Must enter valid integer")
-            except InvalidSelectionException:
-                print("Selection out of bounds.")
-
-        print(
-            "Package(s): {} will be installed. Continue? [y/n] ".format(
-                results[selection][WorkshopResultsEnum.TITLE.value]
-            ),
-            end="",
-        )
-
-        if input() != "y":
-            return False
-
-        Manager(self.path, self.workshop_path).sync_mod(
-            results[selection][WorkshopResultsEnum.STEAMID.value],
-            force_overwrite=self.force_overwrite,
-        )
-        print("Package installation complete.")
-
-    def install(self, arguments):
-        self.sync(arguments)
-
-    def update(self, arguments):
-        print(
-            "\nPreparing to update following packages:\n  "
-            + "\n  ".join(
-                str(x)
-                for x in sorted(Manager(self.path, self.workshop_path).get_mods_names())
-            )
-            + "\n\nThe action will overwrite any changes to the mod directory"
-            + "\nAdd a .rmm_ignore to your mod directory to exclude it frome this list."
-            + "\nWould you like to continue? [y/n]"
-        )
-
-        if input() != "y":
-            return False
-
-        Manager(self.path, self.workshop_path).update_all_mods(
-            force_overwrite=self.force_overwrite
-        )
-        print("Package update complete.")
-
-    def migrate(self, arguments):
-        print(
-            "RMM is going to migrate your Steam Workshop mods to the game's native Mods directory. The following packages will be migrated: "
-            + ", ".join(
-                str(x) for x in Manager(self.path, self.workshop_path).get_mods_names()
-            )
-            + "\n\nWould you like to continue? [y/n]"
-        )
-
-        if input() != "y":
-            return False
-
-        if not self.workshop_path:
-            print("Workshop path not found. Please specify with -w /path/to/workshop")
-
-        run_sh(
-            f'find "{self.workshop_path}" -mindepth 1 -maxdepth 1 -type d -print0 | xargs -0 cp -rv -t "{self.path}" >&2'
-        )
-        print(
-            "Migration complete. To complete the migration go to https://steamcommunity.com/app/294100/workshop/\nNavigate to Browse->Subscribed Items. Then select 'Unsubscribe From All'"
-        )
-
-    def backup(self, arguments):
-        print("Backing up mod directory to '{}.\n".format(arguments["<file>"]))
-        Manager(self.path, self.workshop_path).backup_mod_dir(arguments["<file>"])
-        print("Backup completed to " + arguments["<file>"])
-
-    def remove(self, arguments):
-        search_term = " ".join(arguments["<term>"])
-        search_result = [
-            r
-            for r in Manager(self.path, self.workshop_path).get_mods_as_list()
-            if str.lower(search_term) in str.lower(r.name)
-            or str.lower(search_term) in str.lower(r.author)
-            or search_term == r.steamid
+            ("help", "-h"),
+            ("version", "-v"),
         ]
-
-        if not search_result:
-            print(f"No packages matching {search_term}")
-            return False
-
-        for n, element in enumerate(reversed(search_result)):
-            n = abs(n - len(search_result))
-            print(
-                "{}. {} by {}".format(
-                    n,
-                    element.name,
-                    element.author,
-                )
-            )
-        print("Packages to remove (eg: 1 2 3, 1-3 or ^4)")
-
-        def expand_ranges(s):
-            import re
-
-            return re.sub(
-                r"(\d+)-(\d+)",
-                lambda match: " ".join(
-                    str(i) for i in range(int(match.group(1)), int(match.group(2)) + 1)
-                ),
-                s,
-            )
-
-        while True:
-            try:
-                selection = input()
-                selection = [int(s) for s in expand_ranges(selection).split(" ")]
-                for n in selection:
-                    if n > len(search_result) or n <= 0:
-                        raise InvalidSelectionException("Out of bounds")
-                break
-            except ValueError:
-                print("Must enter valid integer or range")
-            except InvalidSelectionException:
-                print("Selection out of bounds.")
-
-        remove_queue = [search_result[m - 1] for m in selection]
-        print("Would you like to remove? ")
-        for m in remove_queue:
-            print("{} by {}".format(m.name, m.author))
-
-        print("[y/n]: ", end="")
-
-        if input() != "y":
-            return False
-
-        Manager(self.path, self.workshop_path).remove_mod_list(remove_queue)
-
-    def query(self, arguments):
-        search_term = " ".join(arguments["<term>"])
-
-        search_result = [
-            r
-            for r in Manager(self.path, self.workshop_path).get_mods_as_list()
-            if str.lower(search_term) in str.lower(r.name)
-            or str.lower(search_term) in str.lower(r.author)
-            or search_term == r.steamid
-        ]
-        if not search_result:
-            print(f"No packages matching {search_term}")
-            return False
-        for n, element in enumerate(reversed(search_result)):
-            n = abs(n - len(search_result))
-            print(
-                "{}. {} by {}".format(
-                    n,
-                    element.name,
-                    element.author,
-                )
-            )
-
-def run():
-    t = CLI()
+        try:
+            if s := CLI.__find_in_mixed_str_tuple_list(sys.argv[0], actions):
+                if s == "list":
+                    CLI._list(sys.argv, config)
+                else:
+                    getattr(CLI, s)(sys.argv, config)
+        except IndexError:
+            print(Useage.__doc__)
+            sys.exit(0)
 
 
 if __name__ == "__main__":
-    run()
+    CLI.run()
+
+    # Create test mod list
+    # mods = ModFolderReader.create_mods_list(PathFinder.find_game(Path("~/games")))
+    # print(mods)
+
+    # print(
+    #     PathFinder.get_workshop_from_game_path(
+    #         Path("~/.local/share/Steam/steamapps/common/RimWorld")
+    #     )
+    # )
+    # test = ModsConfig(PathFinder.find_config_defaults() / "Config/ModsConfig.xml")
+    # test.remove_mod(Mod("fluffy.desirepaths"))
+    # test.write()
+
+    # ModListStreamer.write(Path("/tmp/test_modlist"), mods, ModListV1Format())
+    # print(len(ModListStreamer.read(Path("/tmp/test_modlist"), ModListV1Format())))
+
+    # results = list(WorkshopWebScraper.search("rimhud"))
+    # for n in range(1):
+    #     print(results[n].get_details())
+    #     print()
