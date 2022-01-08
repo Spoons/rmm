@@ -475,13 +475,7 @@ class CLI:
         self.workshop_path = None
 
         try:
-<<<<<<< HEAD
             arguments = docopt.docopt(__doc__, version=f"RMM {__version__}")
-||||||| parent of aa2219e (feat: migrate command copies instead of sync)
-            arguments = docopt.docopt(__doc__, version="RMM 0.0.4", more_magic=True)
-=======
-            arguments = docopt.docopt(__doc__, version="RMM 0.0.6", more_magic=True)
->>>>>>> aa2219e (feat: migrate command copies instead of sync)
         except docopt.DocoptExit:
             arguments = {}
             print(__doc__)
