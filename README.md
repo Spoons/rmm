@@ -1,10 +1,14 @@
 # RMM: RimWorld Mod Manager
 
-RMM is an open source RimWorld mod manager designed for Unix systems. RMM uses the SteamCMD binary to download mods. 
+RMM is an open source RimWorld mod manager designed for Unix systems. RMM uses the SteamCMD binary to download mods.
+
+## 1.0 Release
+
+I'm currently working on preparing version 1.0 for release. The point release includes a major architectural overhaul, improvements in code quality, cross platform support, preliminary support for a QT based GUI, and early mod sorting. As of right now, versions below 1.0.0 are in maintenence mode. However, isssues will still be fixed as they are found.
 
 ## MOD DEVELOPERS PLEASE READ:
 
-When using `rmm update`, rmm will update all mods in your game path and will overwrite your development folder with the latest version from Steam. To prevent all destructive writes, create a `.rmm_ignore` file in your Mods directory. 
+When using `rmm update`, rmm will update all mods in your game path and will overwrite your development folder with the latest version from Steam. To prevent all destructive writes, create a `.rmm_ignore` file in your Mods directory.
 
 ## Prerequisites
 
@@ -130,17 +134,17 @@ Options:
 
 ## How To
 List installed packages:
-``` 
+```
 rmm list
 ```
 
 Search workshop packages:
-``` 
+```
 rmm search term
 ```
 
 Search locally installed mods
-``` 
+```
 rmm query term
 ```
 
@@ -175,7 +179,7 @@ rmm backup ~/rimworld.tar
 ```
 
 Migrate from Steam Workshop to RimWorld 'Mods' folder:
-``` 
+```
 rmm migrate
 ```
 
