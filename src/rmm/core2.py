@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import csv
+import importlib.metadata
+import os
 import re
 import shutil
 import subprocess
@@ -12,9 +14,10 @@ from abc import ABC, abstractmethod
 from collections.abc import MutableSequence
 from multiprocessing import Pool
 from pathlib import Path
-from typing import Any, Generator, Iterable, Iterator, Optional, cast, Callable
+from typing import Any, Callable, Generator, Iterable, Iterator, Optional, cast
 from xml.dom import minidom
 
+import tabulate
 from bs4 import BeautifulSoup
 
 
@@ -66,8 +69,7 @@ class Useage:
 class Util:
     @staticmethod
     def platform() -> Optional[str]:
-        unixes = ["darwin", "linux", "freebsd"]
-        windows = "win32"
+        unixes = ["linux", "darwin", "freebsd"]
 
         for n in unixes:
             if sys.platform.startswith(n):
@@ -136,7 +138,11 @@ class XMLUtil:
     @staticmethod
     def et_pretty_xml(root: ET.Element) -> str:
         return minidom.parseString(
-            re.sub(r"[\n\t\s]*", "", (ET.tostring(cast(ET.Element, root), "utf-8").decode()))
+            re.sub(
+                r"[\n\t\s]*",
+                "",
+                (ET.tostring(cast(ET.Element, root), "utf-8").decode()),
+            )
         ).toprettyxml(indent="  ", newl="\n")
 
 
@@ -532,7 +538,7 @@ class WorkshopWebScraper:
         )
 
     @classmethod
-    def search(cls, term: str) -> Generator[WorkshopResult, None, None]:
+    def search(cls, term: str, details: bool = False) -> Generator[WorkshopResult, None, None]:
         results = BeautifulSoup(
             cls._request(cls.index_query, term),
             "html.parser",
@@ -541,14 +547,19 @@ class WorkshopWebScraper:
         for r in results:
             try:
                 item_title = r.find("div", class_="workshopItemTitle").get_text()
-                author_name = r.find("div", class_="workshopItemAuthorName").get_text()
+                author_name = r.find("div", class_="workshopItemAuthorName").get_text()[3:]
                 steamid = int(
                     re.search(r"\d+", r.find("a", class_="ugc")["href"]).group()
                 )
             except (AttributeError, ValueError):
                 continue
-            yield WorkshopResult(steamid, name=item_title, author=author_name)
-
+            print("grabbing " + item_title)
+            result = WorkshopResult(steamid, name=item_title, author=author_name)
+            if details:
+                detailsResult = WorkshopWebScraper.detail(steamid)
+                if detailsResult:
+                    result._merge(detailsResult)
+            yield result
 
 class Configuration:
     """
@@ -655,6 +666,14 @@ class PathFinder:
         return cls._search_defaults(cls.DEFAULT_CONFIG_PATHS, cls.find_config)
 
 
+class Config:
+    def __init__(
+        self, path: Optional[Path] = None, workshop_path: Optional[Path] = None
+    ):
+        self.path = cast(Path, path)
+        self.workshop_path = workshop_path
+
+
 class ModsConfig:
     def __init__(self, p: Path):
         if isinstance(p, str):
@@ -668,7 +687,10 @@ class ModsConfig:
 
         self.root = self.element_tree.getroot()
         try:
-            enabled = cast(list[str], XMLUtil.list_grab("activeMods", cast(ET.ElementTree, self.root)))
+            enabled = cast(
+                list[str],
+                XMLUtil.list_grab("activeMods", cast(ET.ElementTree, self.root)),
+            )
             self.mods = [Mod(pid) for pid in enabled]
         except TypeError:
             print("Unable to parse activeMods in ModsConfig")
@@ -689,20 +711,18 @@ class ModsConfig:
                 new_element = ET.SubElement(active_mods, "li")
                 new_element.text = mod.packageid
         except AttributeError:
-            raise Exception("Unable to find \'activeMods\' in ModsConfig")
+            raise Exception("Unable to find 'activeMods' in ModsConfig")
 
         buffer = XMLUtil.et_pretty_xml(self.root)
         print(buffer)
 
         try:
-            with self.path.open('w+') as f:
+            with self.path.open("w+") as f:
                 f.seek(0)
                 f.write(buffer)
         except OSError:
             print("Unable to write ModsConfig")
             raise
-
-
 
     def enable_mod(self, m: Mod):
         self.mods.append(m)
@@ -714,10 +734,6 @@ class ModsConfig:
 
 
 class DefAnalyzer:
-    pass
-
-
-class CLI:
     pass
 
 
@@ -763,24 +779,159 @@ class GraphAnalyzer:
         plt.show()
 
 
-if __name__ == "__main__":
-    # Create test mod list
-    mods = ModFolderReader.create_mods_list(PathFinder.find_game(Path("~/apps")))
-    print(mods)
-
-    print(
-        PathFinder.get_workshop_from_game_path(
-            Path("~/.local/share/Steam/steamapps/common/RimWorld")
+class CLI:
+    @staticmethod
+    def tabulate_mods(mods: ModList) -> str:
+        return tabulate.tabulate(
+            [[n.name, n.author[:20], n.steamid, n.ignored, n.path.name] for n in mods],
+            headers=["name", "author", "steamid", "ignored", "folder"],
         )
-    )
-    test = ModsConfig(PathFinder.find_config_defaults() / "Config/ModsConfig.xml")
-    test.remove_mod(Mod("fluffy.desirepaths"))
-    test.write()
 
-    ModListStreamer.write(Path("/tmp/test_modlist"), mods, ModListV1Format())
-    print(len(ModListStreamer.read(Path("/tmp/test_modlist"), ModListV1Format())))
+    @staticmethod
+    def __find_in_mixed_str_tuple_list(word, _list):
+        for item in _list:
+            if isinstance(item, tuple):
+                if word in list(item):
+                    return item[0]
+            if isinstance(item, str):
+                if word == item:
+                    return word
+        return None
 
-    results = list(WorkshopWebScraper.search("rimhud"))
-    for n in range(1):
-        print(results[n].get_details())
-        print()
+    @staticmethod
+    def parse_options() -> Config:
+        path_options = [("path", "--path", "-p"), ("workshop_path", "--workshop", "-w")]
+
+        config = Config()
+        del sys.argv[0]
+        try:
+            while s := CLI.__find_in_mixed_str_tuple_list(
+                sys.argv[0], [p[1:] for p in path_options]
+            ):
+                del sys.argv[0]
+                setattr(config, s, Path(sys.argv[0]))
+                del sys.argv[0]
+        except IndexError:
+            pass
+
+        # flag_options = [()]
+        # try:
+        #     while s:= CLI.__find_in_mixed_str_tuple_list(sys.argv[0], f[1:] for f in flag_options):
+        #         del sys.argv[0]
+        #         config[s] = True
+        # except IndexError:
+        #     pass
+        #
+        return config
+
+    @staticmethod
+    def help(args: list, config: Config):
+        print(Useage.__doc__)
+
+    @staticmethod
+    def version(args: list, config: Config):
+        try:
+            print(importlib.metadata.version("rmm-spoons"))
+        except importlib.metadata.PackageNotFoundError:
+            print("version unknown")
+
+    @staticmethod
+    def _list(args, config: Config):
+        print(CLI.tabulate_mods(ModFolderReader.create_mods_list(config.path)))
+
+    @staticmethod
+    def query(args, config: Config):
+        search_term = " ".join(args[1:])
+        print(
+            CLI.tabulate_mods(
+                ModList(
+                    [
+                        r
+                        for r in ModFolderReader.create_mods_list(config.path)
+                        if str.lower(search_term) in str.lower(r.name)
+                        or str.lower(search_term) in str.lower(r.author)
+                        or search_term == r.steamid
+                    ]
+                )
+            )
+        )
+
+    @staticmethod
+    def search(args: list[str], config: Config):
+        results = reversed(list(WorkshopWebScraper.search(" ".join(args[1:]))))
+        # print(tabulate.tabulate([[r.name, r.author, r.num_ratings, r.description] for r in resultsGenerator]))
+        [print(f"{r.name} by {r.author}") for r in results]
+
+    @staticmethod
+    def run():
+        config = CLI.parse_options()
+        if config.path:
+            config.path = PathFinder.find_game(config.path)
+        if not config.path:
+            try:
+                config.path = PathFinder.find_game(Path(os.environ["RMM_PATH"]))
+            except KeyError:
+                config.path = PathFinder.find_game_defaults()
+
+        if config.workshop_path:
+            config.workshop_path = PathFinder.find_workshop(Path(config.workshop_path))
+
+        if not config.workshop_path:
+            try:
+                config.workshop_path = PathFinder.find_workshop(
+                    Path(os.environ["RMM_WORKSHOP_PATH"])
+                )
+            except KeyError:
+                if config.path:
+                    config.workshop_path = PathFinder.get_workshop_from_game_path(
+                        Path(config.path)
+                    )
+                else:
+                    config.workshop_path = PathFinder.find_workshop_defaults()
+
+        actions = [
+            "backup",
+            "export",
+            "list",
+            "query",
+            "remove",
+            "search",
+            "sync",
+            "update",
+            ("help", "-h"),
+            ("version", "-v"),
+        ]
+        try:
+            if s := CLI.__find_in_mixed_str_tuple_list(sys.argv[0], actions):
+                if s == "list":
+                    CLI._list(sys.argv, config)
+                else:
+                    getattr(CLI, s)(sys.argv, config)
+        except IndexError:
+            print(Useage.__doc__)
+            sys.exit(0)
+
+
+if __name__ == "__main__":
+    CLI.run()
+
+    # Create test mod list
+    # mods = ModFolderReader.create_mods_list(PathFinder.find_game(Path("~/games")))
+    # print(mods)
+
+    # print(
+    #     PathFinder.get_workshop_from_game_path(
+    #         Path("~/.local/share/Steam/steamapps/common/RimWorld")
+    #     )
+    # )
+    # test = ModsConfig(PathFinder.find_config_defaults() / "Config/ModsConfig.xml")
+    # test.remove_mod(Mod("fluffy.desirepaths"))
+    # test.write()
+
+    # ModListStreamer.write(Path("/tmp/test_modlist"), mods, ModListV1Format())
+    # print(len(ModListStreamer.read(Path("/tmp/test_modlist"), ModListV1Format())))
+
+    # results = list(WorkshopWebScraper.search("rimhud"))
+    # for n in range(1):
+    #     print(results[n].get_details())
+    #     print()
