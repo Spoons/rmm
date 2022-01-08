@@ -466,10 +466,6 @@ class WorkshopResult:
             ):
                 setattr(self, prop, (getattr(other, prop)))
 
-    def get_details(self):
-        self._merge(WorkshopWebScraper.detail(self.steamid))
-        return self
-
 
 class WorkshopWebScraper:
     headers = {
@@ -736,7 +732,6 @@ class ModsConfig:
 class DefAnalyzer:
     pass
 
-
 class GraphAnalyzer:
     @staticmethod
     def graph(mods):
@@ -788,7 +783,7 @@ class CLI:
         )
 
     @staticmethod
-    def __find_in_mixed_str_tuple_list(word, _list):
+    def __get_long_name_from_alias_map(word, _list):
         for item in _list:
             if isinstance(item, tuple):
                 if word in list(item):
@@ -802,11 +797,12 @@ class CLI:
     def parse_options() -> Config:
         path_options = [("path", "--path", "-p"), ("workshop_path", "--workshop", "-w")]
 
+
         config = Config()
         del sys.argv[0]
         try:
-            while s := CLI.__find_in_mixed_str_tuple_list(
-                sys.argv[0], [p[1:] for p in path_options]
+            while s := CLI.__get_long_name_from_alias_map(
+                sys.argv[0], [p for p in path_options]
             ):
                 del sys.argv[0]
                 setattr(config, s, Path(sys.argv[0]))
@@ -859,12 +855,16 @@ class CLI:
     @staticmethod
     def search(args: list[str], config: Config):
         results = reversed(list(WorkshopWebScraper.search(" ".join(args[1:]))))
-        # print(tabulate.tabulate([[r.name, r.author, r.num_ratings, r.description] for r in resultsGenerator]))
-        [print(f"{r.name} by {r.author}") for r in results]
+        print(tabulate.tabulate([[r.name, r.author, r.num_ratings, r.description] for r in results]))
+
+    @staticmethod
+    def sync(args: list[str], config: Config):
+        print(config)
 
     @staticmethod
     def run():
         config = CLI.parse_options()
+        print(config.path)
         if config.path:
             config.path = PathFinder.find_game(config.path)
         if not config.path:
@@ -892,7 +892,7 @@ class CLI:
         actions = [
             "backup",
             "export",
-            "list",
+            ("_list", "list"),
             "query",
             "remove",
             "search",
@@ -902,11 +902,8 @@ class CLI:
             ("version", "-v"),
         ]
         try:
-            if s := CLI.__find_in_mixed_str_tuple_list(sys.argv[0], actions):
-                if s == "list":
-                    CLI._list(sys.argv, config)
-                else:
-                    getattr(CLI, s)(sys.argv, config)
+            if s := CLI.__get_long_name_from_alias_map(sys.argv[0], actions):
+                getattr(CLI, s)(sys.argv, config)
         except IndexError:
             print(Useage.__doc__)
             sys.exit(0)
