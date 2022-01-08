@@ -188,7 +188,7 @@ class Mod:
 
             def read_steamid(path: Path) -> Optional[int]:
                 try:
-                    return int((path / "About" / "PublishedFileId.txt").read_text())
+                    return int((path / "About" / "PublishedFileId.txt").read_text().strip().encode("ascii", errors="ignore").decode())
                 except (OSError, ValueError) as e:
                     print(e)
                     return None
