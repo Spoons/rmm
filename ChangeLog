@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+v0.1.0
+------
+
+* fix: ignore non ascii characters in pubid file
+* feat: update changelog
+
 v0.0.9
 ------
 
