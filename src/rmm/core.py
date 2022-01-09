@@ -2,153 +2,19 @@
 from __future__ import annotations
 
 import csv
-import importlib.metadata
-import os
 import re
-import shutil
-import subprocess
-import sys
+import tempfile
 import urllib.request
 import xml.etree.ElementTree as ET
-import tempfile
 from abc import ABC, abstractmethod
 from collections.abc import MutableSequence
 from multiprocessing import Pool
 from pathlib import Path
-from typing import Any, Callable, Generator, Iterable, Iterator, Optional, cast
-from xml.dom import minidom
+from typing import Any, Generator, Iterable, Iterator, Optional, cast
 
-import tabulate
 from bs4 import BeautifulSoup
 
-
-class InvalidSelectionException(Exception):
-    pass
-
-
-class Useage:
-    """
-    RimWorld Mod Manager
-
-    Usage:
-    rmm backup <file>
-    rmm export [options] <file>
-    rmm import [options] <file>
-    rmm list [options]
-    rmm migrate [options]
-    rmm query [options] [<term>...]
-    rmm remove [options] [<term>...]
-    rmm search <term>...
-    rmm sync [options] [sync options] <name>...
-    rmm update [options] [sync options]
-    rmm -h | --help
-    rmm -v | --version
-
-    Operations:
-    backup            Backups your mod directory to a tar, gzip,
-                        bz2, or xz archive. Type inferred by name.
-    export            Save mod list to file.
-    import            Install a mod list from a file.
-    list              List installed mods.
-    migrate           Remove mods from workshop and install locally.
-    query             Search installed mods.
-    remove            Remove installed mod.
-    search            Search Workshop.
-    sync              Install or update a mod.
-    update            Update all mods from Steam.
-
-    Parameters
-    term              Name, author, steamid
-    file              File path
-    name              Name of mod.
-
-    Sync Options:
-    -f --force        Force mod directory overwrite
-
-    Options:
-    -p --path DIR     RimWorld path.
-    -w --workshop DIR Workshop Path.
-    """
-
-
-class Util:
-    @staticmethod
-    def platform() -> Optional[str]:
-        unixes = ["linux", "darwin", "freebsd"]
-
-        for n in unixes:
-            if sys.platform.startswith(n):
-                return "unix"
-        if sys.platform.startswith("win32"):
-            return "win32"
-
-        return None
-
-    @staticmethod
-    def execute(cmd) -> Generator[str, None, None]:
-        with subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            universal_newlines=True,
-            text=True,
-            close_fds=True,
-            shell=True,
-        ) as proc:
-            for line in iter(proc.stdout.readline, b""):
-                yield line
-                if (r := proc.poll()) is not None:
-                    if r != 0:
-                        raise subprocess.CalledProcessError(r, cmd)
-                    break
-
-    @staticmethod
-    def run_sh(cmd: str) -> str:
-        return subprocess.check_output(cmd, text=True, shell=True).strip()
-
-    @staticmethod
-    def copy(source: Path, destination: Path, recursive: bool = False):
-        if recursive:
-            shutil.copytree(source, destination)
-        else:
-            shutil.copy2(source, destination, follow_symlinks=True)
-
-    @staticmethod
-    def move(source: Path, destination: Path):
-        shutil.move(source, destination)
-
-    @staticmethod
-    def remove(dest: Path):
-        shutil.rmtree(dest)
-
-
-class XMLUtil:
-    @staticmethod
-    def list_grab(element: str, root: ET.Element) -> Optional[list[str]]:
-        try:
-            return cast(
-                Optional[list[str]],
-                [n.text for n in cast(ET.Element, root.find(element)).findall("li")],
-            )
-        except AttributeError:
-            return None
-
-    @staticmethod
-    def element_grab(element: str, root: ET.Element) -> Optional[str]:
-        try:
-            return cast(ET.Element, root.find(element)).text
-        except AttributeError:
-            return None
-
-    @staticmethod
-    def et_pretty_xml(root: ET.Element) -> str:
-        return minidom.parseString(
-            re.sub(
-                r"[\n\t\s]*",
-                "",
-                (ET.tostring(cast(ET.Element, root), "utf-8").decode()),
-            )
-        ).toprettyxml(indent="  ", newl="\n")
+import util
 
 
 class Mod:
@@ -213,13 +79,13 @@ class Mod:
 
             return Mod(
                 packageid,
-                before=XMLUtil.list_grab("loadAfter", root),
-                after=XMLUtil.list_grab("loadBefore", root),
-                incompatible=XMLUtil.list_grab("incompatibleWith", root),
+                before=util.list_grab("loadAfter", root),
+                after=util.list_grab("loadBefore", root),
+                incompatible=util.list_grab("incompatibleWith", root),
                 path=dirpath,
-                author=XMLUtil.element_grab("author", root),
-                name=XMLUtil.element_grab("name", root),
-                versions=XMLUtil.list_grab("supportedVersions", root),
+                author=util.element_grab("author", root),
+                name=util.element_grab("name", root),
+                versions=util.list_grab("supportedVersions", root),
                 steamid=read_steamid(dirpath),
                 ignored=read_ignored(dirpath),
             )
@@ -426,7 +292,7 @@ class SteamDownloader:
             str(home_path),
             workshop_item_arg + workshop_item_arg.join(str(m) for m in mods),
         )
-        Util.run_sh(query)
+        util.run_sh(query)
 
         return (ModFolderReader.create_mods_list(mod_path), mod_path)
 
@@ -704,13 +570,13 @@ class ModsConfig:
         try:
             enabled = cast(
                 list[str],
-                XMLUtil.list_grab("activeMods", cast(ET.ElementTree, self.root)),
+                util.list_grab("activeMods", cast(ET.ElementTree, self.root)),
             )
             self.mods = [Mod(pid) for pid in enabled]
         except TypeError:
             print("Unable to parse activeMods in ModsConfig")
             raise
-        self.version = XMLUtil.element_grab("version", self.root)
+        self.version = util.element_grab("version", self.root)
         self.length = len(self.mods)
 
     def write(self):
@@ -728,7 +594,7 @@ class ModsConfig:
         except AttributeError:
             raise Exception("Unable to find 'activeMods' in ModsConfig")
 
-        buffer = XMLUtil.et_pretty_xml(self.root)
+        buffer = util.et_pretty_xml(self.root)
         print(buffer)
 
         try:
@@ -746,331 +612,3 @@ class ModsConfig:
         for k, v in enumerate(self.mods):
             if self.mods[k] == m:
                 del self.mods[k]
-
-
-class DefAnalyzer:
-    pass
-
-
-class GraphAnalyzer:
-    @staticmethod
-    def graph(mods):
-        import networkx as nx
-        import pyplot as plt
-
-        DG = nx.DiGraph()
-
-        ignore = ["brrainz.harmony", "UnlimitedHugs.HugsLib"]
-        for m in mods:
-            if m.after:
-                for a in m.after:
-                    if a in mods:
-                        if not a in ignore and not m.packageid in ignore:
-                            DG.add_edge(a, m.packageid)
-            if m.before:
-                for b in m.before:
-                    if b in mods:
-                        if not b in ignore and not m.packageid in ignore:
-                            DG.add_edge(m.packageid, b)
-
-        pos = nx.spring_layout(DG, seed=56327, k=0.8, iterations=15)
-        nx.draw(
-            DG,
-            pos,
-            node_size=100,
-            alpha=0.8,
-            edge_color="r",
-            font_size=8,
-            with_labels=True,
-        )
-        ax = plt.gca()
-        ax.margins(0.08)
-
-        print("topological sort:")
-        sorted = list(nx.topological_sort(DG))
-        for n in sorted:
-            print(n)
-
-        plt.show()
-
-
-class CLI:
-    @staticmethod
-    def tabulate_mods(mods: ModList) -> str:
-        return tabulate.tabulate(
-            [[n.name, n.author[:20], n.steamid, n.ignored, n.path.name] for n in mods],
-            headers=["name", "author", "steamid", "ignored", "folder"],
-        )
-
-    @staticmethod
-    def __get_long_name_from_alias_map(word, _list):
-        for item in _list:
-            if isinstance(item, tuple):
-                if word in list(item):
-                    return item[0]
-            if isinstance(item, str):
-                if word == item:
-                    return word
-        return None
-
-    @staticmethod
-    def parse_options() -> Config:
-        path_options = [("path", "--path", "-p"), ("workshop_path", "--workshop", "-w")]
-
-        config = Config()
-        del sys.argv[0]
-        try:
-            while s := CLI.__get_long_name_from_alias_map(
-                sys.argv[0], [p for p in path_options]
-            ):
-                del sys.argv[0]
-                setattr(config, s, Path(sys.argv[0]))
-                del sys.argv[0]
-        except IndexError:
-            pass
-
-        return config
-
-    @staticmethod
-    def help(args: list, config: Config):
-        print(Useage.__doc__)
-
-    @staticmethod
-    def version(args: list, config: Config):
-        try:
-            print(importlib.metadata.version("rmm-spoons"))
-        except importlib.metadata.PackageNotFoundError:
-            print("version unknown")
-
-    @staticmethod
-    def _list(args, config: Config):
-        print(CLI.tabulate_mods(ModFolderReader.create_mods_list(config.path)))
-
-    @staticmethod
-    def query(args, config: Config):
-        search_term = " ".join(args[1:])
-        print(
-            CLI.tabulate_mods(
-                ModList(
-                    [
-                        r
-                        for r in ModFolderReader.create_mods_list(config.path)
-                        if str.lower(search_term) in str.lower(r.name)
-                        or str.lower(search_term) in str.lower(r.author)
-                        or search_term == r.steamid
-                    ]
-                )
-            )
-        )
-
-    @staticmethod
-    def search(args: list[str], config: Config):
-        joined_args = " ".join(args[1:])
-        results = WorkshopWebScraper.search(joined_args, reverse=True)
-        print(
-            tabulate.tabulate(
-                [[r.name, r.author, r.num_ratings, r.description] for r in results]
-            )
-        )
-
-    @staticmethod
-    def sync(args: list[str], config: Config):
-        joined_args = " ".join(args[1:])
-        results = WorkshopWebScraper.search(joined_args, reverse=True)
-        print(
-            tabulate.tabulate(
-                [
-                    [len(results) - k, r.name, r.author, r.num_ratings, r.description]
-                    for k, r in enumerate(results)
-                ]
-            )
-        )
-        print("Packages to install (eg: 2)")
-
-        while True:
-            try:
-                selection = len(results) - int(input())
-                if selection >= len(results) or selection < 0:
-                    raise InvalidSelectionException("Out of bounds")
-                break
-            except ValueError:
-                print("Must enter valid integer")
-            except InvalidSelectionException:
-                print("Selection out of bounds.")
-
-        selected = results[selection]
-        print(
-            "Package(s): {} will be installed. Continue? [y/n] ".format(
-                selected.name
-            ),
-            end="",
-        )
-
-        if input() != "y":
-            return False
-
-        (mods, path) = SteamDownloader.download([selected.steamid])
-        mods_folder = ModFolderReader.create_mods_list(config.path)
-        matched = cast(list[Mod], [ n for n in mods_folder if n == selected.steamid ])
-        for n in matched:
-            print(f"Uninstalling {n.packageid}")
-            if n.path:
-                Util.remove(n.path)
-            else:
-                print(f"Could not remove: {n.packageid}")
-
-        print(f"Installing {selected.name} by {selected.author}")
-        print(path / str(selected.steamid))
-        print(config.path)
-        Util.copy(path / str( selected.steamid ), config.path / str(selected.steamid), recursive=True)
-
-    @staticmethod
-    def remove(args: list[str], config: Config):
-        search_term = " ".join(args[1:])
-        search_result = ModList(
-                    [
-                        r
-                        for r in ModFolderReader.create_mods_list(config.path)
-                        if str.lower(search_term) in str.lower(r.name)
-                        or str.lower(search_term) in str.lower(r.author)
-                        or search_term == r.steamid
-                    ]
-                )
-
-        if not search_result:
-            print(f"No packages matching {search_term}")
-            return False
-
-        for n, element in enumerate(reversed(search_result)):
-            n = abs(n - len(search_result))
-            print(
-                "{}. {} by {}".format(
-                    n,
-                    element.name,
-                    element.author
-                )
-            )
-        print("Packages to remove (eg: 1 2 3 or 1-3)")
-
-        def expand_ranges(s):
-            import re
-
-            return re.sub(
-                r"(\d+)-(\d+)",
-                lambda match: " ".join(
-                    str(i) for i in range(int(match.group(1)), int(match.group(2)) + 1)
-                ),
-                s,
-            )
-
-        while True:
-            try:
-                selection = input()
-                selection = [int(s) for s in expand_ranges(selection).split(" ")]
-                for n in selection:
-                    if n > len(search_result) or n <= 0:
-                        raise InvalidSelectionException("Out of bounds")
-                break
-            except ValueError:
-                print("Must enter valid integer or range")
-            except InvalidSelectionException:
-                print("Selection out of bounds.")
-
-        remove_queue = [search_result[m - 1] for m in selection]
-        print("Would you like to remove? ")
-        for m in remove_queue:
-            print("{} by {}".format(m.name, m.author))
-
-        print("[y/n]: ", end="")
-
-        if input() != "y":
-            return False
-
-        # (mods, path) = SteamDownloader.download([n.steamid for n in remove_queue])
-        mods_folder = ModFolderReader.create_mods_list(config.path)
-        matched = cast(list[Mod], [ n for n in mods_folder if n in remove_queue ])
-        for n in matched:
-            print(f"Uninstalling {n.packageid}")
-            # if n.path:
-            #     Util.remove(n.path)
-            # else:
-            #     print(f"Could not remove: {n.packageid}")
-
-        # print(f"Installing {selected.name} by {selected.author}")
-        # print(path / str(selected.steamid))
-        # print(config.path)
-        # Util.copy(path / str( selected.steamid ), config.path / str(selected.steamid), recursive=True)
-    @staticmethod
-    def run():
-        config = CLI.parse_options()
-        if config.path:
-            config.path = PathFinder.find_game(config.path)
-        if not config.path:
-            try:
-                config.path = PathFinder.find_game(Path(os.environ["RMM_PATH"]))
-            except KeyError:
-                config.path = PathFinder.find_game_defaults()
-
-        if config.workshop_path:
-            config.workshop_path = PathFinder.find_workshop(Path(config.workshop_path))
-
-        if not config.workshop_path:
-            try:
-                config.workshop_path = PathFinder.find_workshop(
-                    Path(os.environ["RMM_WORKSHOP_PATH"])
-                )
-            except KeyError:
-                if config.path:
-                    config.workshop_path = PathFinder.get_workshop_from_game_path(
-                        Path(config.path)
-                    )
-                else:
-                    config.workshop_path = PathFinder.find_workshop_defaults()
-
-        actions = [
-            "backup",
-            "export",
-            ("_list", "list"),
-            "query",
-            "remove",
-            "search",
-            "sync",
-            "update",
-            ("help", "-h"),
-            ("version", "-v"),
-        ]
-
-        command = None
-        try:
-            if s := CLI.__get_long_name_from_alias_map(sys.argv[0], actions):
-                command = s
-        except IndexError as e:
-            print(Useage.__doc__)
-            sys.exit(0)
-
-        getattr(CLI, command)(sys.argv, config)
-
-
-if __name__ == "__main__":
-    CLI.run()
-
-    # Create test mod list
-    # mods = ModFolderReader.create_mods_list(PathFinder.find_game(Path("~/games")))
-    # print(mods)
-
-    # print(
-    #     PathFinder.get_workshop_from_game_path(
-    #         Path("~/.local/share/Steam/steamapps/common/RimWorld")
-    #     )
-    # )
-    # test = ModsConfig(PathFinder.find_config_defaults() / "Config/ModsConfig.xml")
-    # test.remove_mod(Mod("fluffy.desirepaths"))
-    # test.write()
-
-    # ModListStreamer.write(Path("/tmp/test_modlist"), mods, ModListV1Format())
-    # print(len(ModListStreamer.read(Path("/tmp/test_modlist"), ModListV1Format())))
-
-    # results = list(WorkshopWebScraper.search("rimhud"))
-    # for n in range(1):
-    #     print(results[n].get_details())
-    #     print()
