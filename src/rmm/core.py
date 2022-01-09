@@ -21,6 +21,7 @@ from xml.dom import minidom
 import tabulate
 from bs4 import BeautifulSoup
 
+
 class InvalidSelectionException(Exception):
     pass
 
@@ -192,7 +193,13 @@ class Mod:
 
             def read_steamid(path: Path) -> Optional[int]:
                 try:
-                    return int((path / "About" / "PublishedFileId.txt").read_text().strip().encode("ascii", errors="ignore").decode())
+                    return int(
+                        (path / "About" / "PublishedFileId.txt")
+                        .read_text()
+                        .strip()
+                        .encode("ascii", errors="ignore")
+                        .decode()
+                    )
                 except (OSError, ValueError) as e:
                     print(e)
                     return None
@@ -226,6 +233,8 @@ class Mod:
             return self.packageid == other.packageid
         if isinstance(other, str):
             return self.packageid == other
+        if isinstance(other, int):
+            return self.steamid == other
         return NotImplemented
 
     def __repr__(self):
@@ -349,7 +358,7 @@ class ModListV1Format(ModListSerializer):
             parsed = line.split("#", 1)
             try:
                 yield Mod(
-                    None,
+                    "",
                     steamid=int(parsed[cls.STEAM_ID]),
                 )
             except ValueError:
@@ -414,7 +423,8 @@ class SteamDownloader:
 
         workshop_item_arg = " +workshop_download_item 294100 "
         query = 'env HOME="{}" steamcmd +login anonymous "{}" +quit >&2'.format(
-            str(home_path), workshop_item_arg + workshop_item_arg.join(str(m) for m in mods)
+            str(home_path),
+            workshop_item_arg + workshop_item_arg.join(str(m) for m in mods),
         )
         Util.run_sh(query)
 
@@ -493,7 +503,7 @@ class WorkshopWebScraper:
         )
 
     @classmethod
-    def detail(cls, steamid: int):
+    def detail(cls, steamid: int) -> WorkshopResult:
         results = BeautifulSoup(
             cls._request(cls.detail_query, str(steamid)),
             "html.parser",
@@ -541,28 +551,29 @@ class WorkshopWebScraper:
         )
 
     @classmethod
-    def search(cls, term: str, details: bool = False) -> Generator[WorkshopResult, None, None]:
-        results = BeautifulSoup(
+    def search(cls, term: str, reverse: bool = False) -> list[WorkshopResult]:
+        page_result = BeautifulSoup(
             cls._request(cls.index_query, term),
             "html.parser",
         ).find_all("div", class_="workshopItem")
 
-        for r in results:
+        results = []
+        for r in page_result:
             try:
                 item_title = r.find("div", class_="workshopItemTitle").get_text()
-                author_name = r.find("div", class_="workshopItemAuthorName").get_text()[3:]
+                author_name = r.find("div", class_="workshopItemAuthorName").get_text()[
+                    3:
+                ]
                 steamid = int(
                     re.search(r"\d+", r.find("a", class_="ugc")["href"]).group()
                 )
             except (AttributeError, ValueError):
                 continue
-            result = WorkshopResult(steamid, name=item_title, author=author_name)
-            if details:
-                print("grabbing " + item_title)
-                detailsResult = WorkshopWebScraper.detail(steamid)
-                if detailsResult:
-                    result._merge(detailsResult)
-            yield result
+            results.append(WorkshopResult(steamid, name=item_title, author=author_name))
+
+        if reverse:
+            return list(reversed(results))
+        return results
 
 
 class Configuration:
@@ -806,7 +817,6 @@ class CLI:
     def parse_options() -> Config:
         path_options = [("path", "--path", "-p"), ("workshop_path", "--workshop", "-w")]
 
-
         config = Config()
         del sys.argv[0]
         try:
@@ -855,13 +865,26 @@ class CLI:
 
     @staticmethod
     def search(args: list[str], config: Config):
-        results = reversed(list(WorkshopWebScraper.search(" ".join(args[1:]))))
-        print(tabulate.tabulate([[r.name, r.author, r.num_ratings, r.description] for r in results]))
+        joined_args = " ".join(args[1:])
+        results = WorkshopWebScraper.search(joined_args, reverse=True)
+        print(
+            tabulate.tabulate(
+                [[r.name, r.author, r.num_ratings, r.description] for r in results]
+            )
+        )
 
     @staticmethod
     def sync(args: list[str], config: Config):
-        results = list(reversed(list(WorkshopWebScraper.search(" ".join(args[1:])))))
-        print(tabulate.tabulate([[len(results)-k, r.name, r.author, r.num_ratings, r.description] for k,r in enumerate(results)]))
+        joined_args = " ".join(args[1:])
+        results = WorkshopWebScraper.search(joined_args, reverse=True)
+        print(
+            tabulate.tabulate(
+                [
+                    [len(results) - k, r.name, r.author, r.num_ratings, r.description]
+                    for k, r in enumerate(results)
+                ]
+            )
+        )
         print("Packages to install (eg: 2)")
 
         while True:
@@ -875,17 +898,108 @@ class CLI:
             except InvalidSelectionException:
                 print("Selection out of bounds.")
 
-        # print(
-        #     "Package(s): {} will be installed. Continue? [y/n] ".format(
-        #         results[selection].name
-        #     ),
-        #     end="",
-        # )
+        selected = results[selection]
+        print(
+            "Package(s): {} will be installed. Continue? [y/n] ".format(
+                selected.name
+            ),
+            end="",
+        )
 
-        (mods, path) = SteamDownloader.download([results[selection].steamid])
+        if input() != "y":
+            return False
 
+        (mods, path) = SteamDownloader.download([selected.steamid])
+        mods_folder = ModFolderReader.create_mods_list(config.path)
+        matched = cast(list[Mod], [ n for n in mods_folder if n == selected.steamid ])
+        for n in matched:
+            print(f"Uninstalling {n.packageid}")
+            if n.path:
+                Util.remove(n.path)
+            else:
+                print(f"Could not remove: {n.packageid}")
 
+        print(f"Installing {selected.name} by {selected.author}")
+        print(path / str(selected.steamid))
+        print(config.path)
+        Util.copy(path / str( selected.steamid ), config.path / str(selected.steamid), recursive=True)
 
+    @staticmethod
+    def remove(args: list[str], config: Config):
+        search_term = " ".join(args[1:])
+        search_result = ModList(
+                    [
+                        r
+                        for r in ModFolderReader.create_mods_list(config.path)
+                        if str.lower(search_term) in str.lower(r.name)
+                        or str.lower(search_term) in str.lower(r.author)
+                        or search_term == r.steamid
+                    ]
+                )
+
+        if not search_result:
+            print(f"No packages matching {search_term}")
+            return False
+
+        for n, element in enumerate(reversed(search_result)):
+            n = abs(n - len(search_result))
+            print(
+                "{}. {} by {}".format(
+                    n,
+                    element.name,
+                    element.author
+                )
+            )
+        print("Packages to remove (eg: 1 2 3 or 1-3)")
+
+        def expand_ranges(s):
+            import re
+
+            return re.sub(
+                r"(\d+)-(\d+)",
+                lambda match: " ".join(
+                    str(i) for i in range(int(match.group(1)), int(match.group(2)) + 1)
+                ),
+                s,
+            )
+
+        while True:
+            try:
+                selection = input()
+                selection = [int(s) for s in expand_ranges(selection).split(" ")]
+                for n in selection:
+                    if n > len(search_result) or n <= 0:
+                        raise InvalidSelectionException("Out of bounds")
+                break
+            except ValueError:
+                print("Must enter valid integer or range")
+            except InvalidSelectionException:
+                print("Selection out of bounds.")
+
+        remove_queue = [search_result[m - 1] for m in selection]
+        print("Would you like to remove? ")
+        for m in remove_queue:
+            print("{} by {}".format(m.name, m.author))
+
+        print("[y/n]: ", end="")
+
+        if input() != "y":
+            return False
+
+        # (mods, path) = SteamDownloader.download([n.steamid for n in remove_queue])
+        mods_folder = ModFolderReader.create_mods_list(config.path)
+        matched = cast(list[Mod], [ n for n in mods_folder if n in remove_queue ])
+        for n in matched:
+            print(f"Uninstalling {n.packageid}")
+            # if n.path:
+            #     Util.remove(n.path)
+            # else:
+            #     print(f"Could not remove: {n.packageid}")
+
+        # print(f"Installing {selected.name} by {selected.author}")
+        # print(path / str(selected.steamid))
+        # print(config.path)
+        # Util.copy(path / str( selected.steamid ), config.path / str(selected.steamid), recursive=True)
     @staticmethod
     def run():
         config = CLI.parse_options()
@@ -925,12 +1039,16 @@ class CLI:
             ("help", "-h"),
             ("version", "-v"),
         ]
+
+        command = None
         try:
             if s := CLI.__get_long_name_from_alias_map(sys.argv[0], actions):
-                getattr(CLI, s)(sys.argv, config)
-        except IndexError:
+                command = s
+        except IndexError as e:
             print(Useage.__doc__)
             sys.exit(0)
+
+        getattr(CLI, command)(sys.argv, config)
 
 
 if __name__ == "__main__":
