@@ -11,7 +11,6 @@ from tabulate import tabulate
 import util
 
 from core import (
-    Config,
     Mod,
     ModFolderReader,
     ModList,
@@ -64,6 +63,12 @@ Options:
 -w --workshop DIR Workshop Path.
 """
 
+class Config:
+    def __init__(
+        self, path: Optional[Path] = None, workshop_path: Optional[Path] = None
+    ):
+        self.path = cast(Path, path)
+        self.workshop_path = workshop_path
 
 def tabulate_mods(mods: ModList) -> str:
     return tabulate(
