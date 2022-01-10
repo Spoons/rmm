@@ -390,12 +390,14 @@ def run():
         ("version", "-v"),
     ]
 
-    command = get_long_name_from_alias_map(sys.argv[0], actions)
-    if command and command in globals():
-        globals()[command](sys.argv, config)
-    else:
-        print(USAGE)
-        sys.exit(0)
+    if sys.argv:
+        command = get_long_name_from_alias_map(sys.argv[0], actions)
+        if command and command in globals():
+            globals()[command](sys.argv, config)
+            sys.exit(0)
+
+    print(USAGE)
+    sys.exit(0)
 
 
 if __name__ == "__main__":
