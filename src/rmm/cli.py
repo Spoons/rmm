@@ -4,7 +4,7 @@ import importlib.metadata
 import os
 import sys
 from pathlib import Path
-from typing import cast
+from typing import cast, Optional
 
 from tabulate import tabulate
 
@@ -14,6 +14,9 @@ from core import (
     Mod,
     ModFolderReader,
     ModList,
+    ModListFile,
+    ModListSerializer,
+    ModListV2Format,
     PathFinder,
     SteamDownloader,
     WorkshopWebScraper,
@@ -103,19 +106,19 @@ def parse_options() -> Config:
 
     return config
 
-def help(args: list, config: Config):
+def help(args: list[str], config: Config):
     print(USAGE)
 
-def version(args: list, config: Config):
+def version(args: list[str], config: Config):
     try:
         print(importlib.metadata.version("rmm-spoons"))
     except importlib.metadata.PackageNotFoundError:
         print("version unknown")
 
-def _list(args, config: Config):
+def _list(args: list[str], config: Config):
     print(tabulate_mods(ModFolderReader.create_mods_list(config.path)))
 
-def query(args, config: Config):
+def query(args: list[str], config: Config):
     search_term = " ".join(args[1:])
     print(
         tabulate_mods(
@@ -253,7 +256,46 @@ def remove(args: list[str], config: Config):
     for n in matched:
         print(f"Uninstalling {n.packageid}")
 
-# def update(args: list[str], config: Config):
+def update(args: list[str], config: Config):
+    mods = ModFolderReader.create_mods_list(config.path)
+    mod_names = "\n  ".join([n.name for n in mods])
+    print("Preparing to update following packages:")
+    print(mod_names)
+    print("\nThe action will overwrite any changes to the mod directory\n"
+          "Add a .rmm_ignore to your mod directory to exclude it frome this list.\n"
+          "Would you like to continue? [y/n]")
+
+    # if input() != "y":
+    #     return False
+
+    (_, path) = SteamDownloader.download([m.steamid for m in mods])
+
+    for m in mods:
+        print(f"Uninstalling {m.packageid}")
+        if m.path:
+            util.remove(m.path)
+            print(f"Installing {m.packageid}")
+            util.copy(
+                path / str(m.steamid),
+                config.path / str(m.steamid),
+                recursive=True,
+            )
+        else:
+            print(f"Could not remove: {m.packageid}")
+
+def export(args: list[str], config: Config):
+    mods = ModFolderReader.create_mods_list(config.path)
+    joined_args = " ".join(args[1:])
+    ModListFile.write(Path(joined_args), mods, ModListV2Format())
+    print(f"Mod list written to {joined_args}")
+
+
+def _import(args: list[str], config: Config):
+    joined_args = " ".join(args[1:])
+    mods = ModListFile.read(Path( joined_args ))
+    print(mods[0].name)
+    print(mods[0].steamid)
+
 
 def run():
     config = parse_options()
@@ -284,28 +326,23 @@ def run():
     actions = [
         "backup",
         "export",
-        ("_list", "list"),
-        "query",
-        "remove",
-        "search",
-        "sync",
-        "update",
+        ("_import", "import"),
+        ("_list", "list", '-Q'),
+        ("query", '-Qs'),
+        ("remove", '-R'),
+        ("search", '-Ss'),
+        ("sync", '-S'),
+        ("update", '-Su'),
         ("help", "-h"),
         ("version", "-v"),
     ]
 
-    command = None
-    try:
-        if s := get_long_name_from_alias_map(sys.argv[0], actions):
-            command = s
-    except IndexError as e:
+    command = get_long_name_from_alias_map(sys.argv[0], actions)
+    if command and command in globals():
+        globals()[command](sys.argv, config)
+    else:
         print(USAGE)
         sys.exit(0)
-
-    print(globals())
-    globals()[command](sys.argv, config)
-    # getattr(CLI, command)(sys.argv, config)
-
 
 
 if __name__ == "__main__":
@@ -324,8 +361,8 @@ if __name__ == "__main__":
     # test.remove_mod(Mod("fluffy.desirepaths"))
     # test.write()
 
-    # ModListStreamer.write(Path("/tmp/test_modlist"), mods, ModListV1Format())
-    # print(len(ModListStreamer.read(Path("/tmp/test_modlist"), ModListV1Format())))
+    # ModListFile.write(Path("/tmp/test_modlist"), mods, ModListV1Format())
+    # print(len(ModListFile.read(Path("/tmp/test_modlist"), ModListV1Format())))
 
     # results = list(WorkshopWebScraper.search("rimhud"))
     # for n in range(1):

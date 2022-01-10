@@ -91,7 +91,8 @@ class Mod:
             )
 
         except OSError as e:
-            print(f"Could not read {dirpath}")
+            if not "Place mods here" in dirpath.name:
+                print(f"Ignoring {dirpath}")
             return None
 
     def __eq__(self, other):
@@ -192,7 +193,8 @@ class ModListV2Format(ModListSerializer):
                     repo_url=parsed[cls.HEADER["REPO_URL"]] if not "" else None,
                 )
             except (ValueError, IndexError):
-                print("Unable to import: ", parsed)
+                if parsed:
+                    print("Unable to import: ", parsed)
                 continue
 
     @classmethod
@@ -220,12 +222,22 @@ class ModListV1Format(ModListSerializer):
 
     @classmethod
     def parse(cls, text: str) -> Generator[Mod, None, None]:
+        name_exp = re.compile("(.*) by (.*)")
         for line in text.split("\n"):
             parsed = line.split("#", 1)
+            name = None
+            author = None
+            if len(parsed) == 2:
+                matches = re.findall(name_exp, parsed[1])
+                if matches and len( matches[0] ) == 2:
+                    name = matches[0][0]
+                    author = matches[0][1]
             try:
                 yield Mod(
                     "",
-                    steamid=int(parsed[cls.STEAM_ID]),
+                    steamid=int(parsed[cls.STEAM_ID].strip().encode("ascii", errors="ignore").decode()),
+                    name=name,
+                    author=author
                 )
             except ValueError:
                 if line:
@@ -242,9 +254,9 @@ class ModListV1Format(ModListSerializer):
         return "{}# {} by {} ".format(str(mod.steamid), mod.name, mod.author)
 
 
-class ModListStreamer:
+class ModListFile:
     @staticmethod
-    def read(path: Path, serializer: ModListSerializer) -> Optional[MutableSequence]:
+    def read(path: Path) -> Optional[MutableSequence]:
         try:
             with path.open("r") as f:
                 text = f.read()
@@ -252,7 +264,10 @@ class ModListStreamer:
             print(e)
             return None
 
-        return [m for m in serializer.parse(text)]
+        if re.search(r"^\s?[0-9]+\s?#.*$", text, re.MULTILINE):
+            return [m for m in ModListV1Format.parse(text)]
+
+        return [m for m in ModListV2Format.parse(text)]
 
     @staticmethod
     def write(path: Path, mods: MutableSequence, serializer: ModListSerializer):
@@ -545,14 +560,6 @@ class PathFinder:
     @classmethod
     def find_config_defaults(cls) -> Optional[Path]:
         return cls._search_defaults(cls.DEFAULT_CONFIG_PATHS, cls.find_config)
-
-
-class Config:
-    def __init__(
-        self, path: Optional[Path] = None, workshop_path: Optional[Path] = None
-    ):
-        self.path = cast(Path, path)
-        self.workshop_path = workshop_path
 
 
 class ModsConfig:
