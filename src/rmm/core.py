@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Generator, Iterable, Iterator, Optional, cast
 
 from bs4 import BeautifulSoup
-from rmm.exception import InvalidPackageHash
+from exception import InvalidPackageHash
 
 import util
 
