@@ -38,6 +38,7 @@ def execute(cmd) -> Generator[str, None, None]:
 
 
 def run_sh(cmd: str) -> str:
+    # Will raise a CalledProcessError if non-zero return code
     return subprocess.check_output(cmd, text=True, shell=True).strip()
 
 
@@ -54,6 +55,14 @@ def move(source: Path, destination: Path):
 
 def remove(dest: Path):
     shutil.rmtree(dest)
+
+
+def list_intersection(a: list, b: list) -> list:
+    return list(set(a) & set(b))
+
+
+def list_quality_intersection(a: list, b: list) -> list:
+    return list(set(a) & set(b))
 
 
 def list_grab(element: str, root: ET.Element) -> Optional[list[str]]:

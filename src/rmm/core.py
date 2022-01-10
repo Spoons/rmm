@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Generator, Iterable, Iterator, Optional, cast
 
 from bs4 import BeautifulSoup
+from rmm.exception import InvalidPackageHash
 
 import util
 
@@ -103,6 +104,11 @@ class Mod:
         if isinstance(other, int):
             return self.steamid == other
         return NotImplemented
+
+    def __hash__(self, other):
+        if not self.packageid:
+            raise InvalidPackageHash()
+        return hash(self.packageid)
 
     def __repr__(self):
         return self.__str__()
@@ -229,15 +235,20 @@ class ModListV1Format(ModListSerializer):
             author = None
             if len(parsed) == 2:
                 matches = re.findall(name_exp, parsed[1])
-                if matches and len( matches[0] ) == 2:
+                if matches and len(matches[0]) == 2:
                     name = matches[0][0]
                     author = matches[0][1]
             try:
                 yield Mod(
                     "",
-                    steamid=int(parsed[cls.STEAM_ID].strip().encode("ascii", errors="ignore").decode()),
+                    steamid=int(
+                        parsed[cls.STEAM_ID]
+                        .strip()
+                        .encode("ascii", errors="ignore")
+                        .decode()
+                    ),
                     name=name,
-                    author=author
+                    author=author,
                 )
             except ValueError:
                 if line:

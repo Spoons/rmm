@@ -23,7 +23,7 @@ from core import (
 )
 from exception import InvalidSelectionException
 
-USAGE= """
+USAGE = """
 RimWorld Mod Manager
 
 Usage:
@@ -66,6 +66,7 @@ Options:
 -w --workshop DIR Workshop Path.
 """
 
+
 class Config:
     def __init__(
         self, path: Optional[Path] = None, workshop_path: Optional[Path] = None
@@ -73,11 +74,13 @@ class Config:
         self.path = cast(Path, path)
         self.workshop_path = workshop_path
 
+
 def tabulate_mods(mods: ModList) -> str:
     return tabulate(
         [[n.name, n.author[:20], n.steamid, n.ignored, n.path.name] for n in mods],
         headers=["name", "author", "steamid", "ignored", "folder"],
     )
+
 
 def get_long_name_from_alias_map(word, _list):
     for item in _list:
@@ -89,15 +92,14 @@ def get_long_name_from_alias_map(word, _list):
                 return word
     return None
 
+
 def parse_options() -> Config:
     path_options = [("path", "--path", "-p"), ("workshop_path", "--workshop", "-w")]
 
     config = Config()
     del sys.argv[0]
     try:
-        while s := get_long_name_from_alias_map(
-            sys.argv[0], [p for p in path_options]
-        ):
+        while s := get_long_name_from_alias_map(sys.argv[0], [p for p in path_options]):
             del sys.argv[0]
             setattr(config, s, Path(sys.argv[0]))
             del sys.argv[0]
@@ -106,8 +108,10 @@ def parse_options() -> Config:
 
     return config
 
+
 def help(args: list[str], config: Config):
     print(USAGE)
+
 
 def version(args: list[str], config: Config):
     try:
@@ -115,8 +119,10 @@ def version(args: list[str], config: Config):
     except importlib.metadata.PackageNotFoundError:
         print("version unknown")
 
+
 def _list(args: list[str], config: Config):
     print(tabulate_mods(ModFolderReader.create_mods_list(config.path)))
+
 
 def query(args: list[str], config: Config):
     search_term = " ".join(args[1:])
@@ -134,14 +140,12 @@ def query(args: list[str], config: Config):
         )
     )
 
+
 def search(args: list[str], config: Config):
     joined_args = " ".join(args[1:])
     results = WorkshopWebScraper.search(joined_args, reverse=True)
-    print(
-        tabulate(
-            [[r.name, r.author, r.num_ratings, r.description] for r in results]
-        )
-    )
+    print(tabulate([[r.name, r.author, r.num_ratings, r.description] for r in results]))
+
 
 def sync(args: list[str], config: Config):
     joined_args = " ".join(args[1:])
@@ -194,6 +198,7 @@ def sync(args: list[str], config: Config):
         config.path / str(selected.steamid),
         recursive=True,
     )
+
 
 def remove(args: list[str], config: Config):
     search_term = " ".join(args[1:])
@@ -256,14 +261,17 @@ def remove(args: list[str], config: Config):
     for n in matched:
         print(f"Uninstalling {n.packageid}")
 
+
 def update(args: list[str], config: Config):
     mods = ModFolderReader.create_mods_list(config.path)
     mod_names = "\n  ".join([n.name for n in mods])
     print("Preparing to update following packages:")
     print(mod_names)
-    print("\nThe action will overwrite any changes to the mod directory\n"
-          "Add a .rmm_ignore to your mod directory to exclude it frome this list.\n"
-          "Would you like to continue? [y/n]")
+    print(
+        "\nThe action will overwrite any changes to the mod directory\n"
+        "Add a .rmm_ignore to your mod directory to exclude it frome this list.\n"
+        "Would you like to continue? [y/n]"
+    )
 
     # if input() != "y":
     #     return False
@@ -283,6 +291,7 @@ def update(args: list[str], config: Config):
         else:
             print(f"Could not remove: {m.packageid}")
 
+
 def export(args: list[str], config: Config):
     mods = ModFolderReader.create_mods_list(config.path)
     joined_args = " ".join(args[1:])
@@ -292,9 +301,53 @@ def export(args: list[str], config: Config):
 
 def _import(args: list[str], config: Config):
     joined_args = " ".join(args[1:])
-    mods = ModListFile.read(Path( joined_args ))
-    print(mods[0].name)
-    print(mods[0].steamid)
+    mods = ModListFile.read(Path(joined_args))
+
+    if not mods:
+        print("No mods imported")
+        exit(1)
+
+    mods = cast(list[Mod], mods)
+
+    unknown = 0
+    for n in mods:
+        display = ""
+        if n.name:
+            display += n.name
+            if n.author:
+                display += f" by { n.author }"
+        elif n.packageid:
+            display = n.packageid
+        else:
+            unknown += 1
+        if display:
+            print(display)
+
+    print("\nImport package(s)? [y/n]:")
+
+    if input() != "y":
+        return False
+
+    (cache_mods, path) = SteamDownloader.download([n.steamid for n in mods])
+    game_mods = ModFolderReader.create_mods_list(config.path)
+    matched = []
+    for m in game_mods:
+        if m in mods:
+            matched.append(m)
+    for n in matched:
+        print(f"Uninstalling {n.packageid}")
+        if n.path:
+            util.remove(n.path)
+        else:
+            print(f"Could not remove: {n.packageid}")
+
+    for n in mods:
+        print(f"Installing {n.packageid}")
+        util.copy(
+            path / str(n.steamid),
+            config.path / str(n.steamid),
+            recursive=True,
+        )
 
 
 def run():
@@ -327,12 +380,12 @@ def run():
         "backup",
         "export",
         ("_import", "import"),
-        ("_list", "list", '-Q'),
-        ("query", '-Qs'),
-        ("remove", '-R'),
-        ("search", '-Ss'),
-        ("sync", '-S'),
-        ("update", '-Su'),
+        ("_list", "list", "-Q"),
+        ("query", "-Qs"),
+        ("remove", "-R"),
+        ("search", "-Ss"),
+        ("sync", "-S"),
+        ("update", "-Su"),
         ("help", "-h"),
         ("version", "-v"),
     ]
