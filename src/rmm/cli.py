@@ -12,7 +12,7 @@ import util
 
 from core import (
     Mod,
-    ModFolderReader,
+    ModFolder,
     ModList,
     ModListFile,
     ModListSerializer,
@@ -31,7 +31,6 @@ rmm backup <file>
 rmm export [options] <file>
 rmm import [options] <file>
 rmm list [options]
-rmm migrate [options]
 rmm query [options] [<term>...]
 rmm remove [options] [<term>...]
 rmm search <term>...
@@ -46,7 +45,6 @@ backup            Backups your mod directory to a tar, gzip,
 export            Save mod list to file.
 import            Install a mod list from a file.
 list              List installed mods.
-migrate           Remove mods from workshop and install locally.
 query             Search installed mods.
 remove            Remove installed mod.
 search            Search Workshop.
@@ -76,9 +74,10 @@ class Config:
 
 
 def tabulate_mods(mods: ModList) -> str:
+    mods = sorted([[n.name, n.author[:20]] for n in mods])
     return tabulate(
-        [[n.name, n.author[:20], n.steamid, n.ignored, n.path.name] for n in mods],
-        headers=["name", "author", "steamid", "ignored", "folder"],
+        sorted(mods),
+        headers=["name", "author"],
     )
 
 
@@ -121,24 +120,12 @@ def version(args: list[str], config: Config):
 
 
 def _list(args: list[str], config: Config):
-    print(tabulate_mods(ModFolderReader.create_mods_list(config.path)))
+    print(tabulate_mods(ModFolder.create_mods_list(config.path)))
 
 
 def query(args: list[str], config: Config):
     search_term = " ".join(args[1:])
-    print(
-        tabulate_mods(
-            ModList(
-                [
-                    r
-                    for r in ModFolderReader.create_mods_list(config.path)
-                    if str.lower(search_term) in str.lower(r.name)
-                    or str.lower(search_term) in str.lower(r.author)
-                    or search_term == r.steamid
-                ]
-            )
-        )
-    )
+    print(tabulate_mods(ModFolder.search(config.path, search_term)))
 
 
 def search(args: list[str], config: Config):
@@ -172,6 +159,7 @@ def sync(args: list[str], config: Config):
             print("Selection out of bounds.")
 
     selected = results[selection]
+
     print(
         "Package(s): {} will be installed. Continue? [y/n] ".format(selected.name),
         end="",
@@ -181,7 +169,7 @@ def sync(args: list[str], config: Config):
         return False
 
     (mods, path) = SteamDownloader.download([selected.steamid])
-    mods_folder = ModFolderReader.create_mods_list(config.path)
+    mods_folder = ModFolder.create_mods_list(config.path)
     matched = cast(list[Mod], [n for n in mods_folder if n == selected.steamid])
     for n in matched:
         print(f"Uninstalling {n.packageid}")
@@ -202,15 +190,7 @@ def sync(args: list[str], config: Config):
 
 def remove(args: list[str], config: Config):
     search_term = " ".join(args[1:])
-    search_result = ModList(
-        [
-            r
-            for r in ModFolderReader.create_mods_list(config.path)
-            if str.lower(search_term) in str.lower(r.name)
-            or str.lower(search_term) in str.lower(r.author)
-            or search_term == r.steamid
-        ]
-    )
+    search_result = ModFolder.search(config.path, search_term)
 
     if not search_result:
         print(f"No packages matching {search_term}")
@@ -256,14 +236,14 @@ def remove(args: list[str], config: Config):
         return False
 
     # (mods, path) = SteamDownloader.download([n.steamid for n in remove_queue])
-    mods_folder = ModFolderReader.create_mods_list(config.path)
+    mods_folder = ModFolder.create_mods_list(config.path)
     matched = cast(list[Mod], [n for n in mods_folder if n in remove_queue])
     for n in matched:
         print(f"Uninstalling {n.packageid}")
 
 
 def update(args: list[str], config: Config):
-    mods = ModFolderReader.create_mods_list(config.path)
+    mods = ModFolder.create_mods_list(config.path)
     mod_names = "\n  ".join([n.name for n in mods])
     print("Preparing to update following packages:")
     print(mod_names)
@@ -273,8 +253,8 @@ def update(args: list[str], config: Config):
         "Would you like to continue? [y/n]"
     )
 
-    # if input() != "y":
-    #     return False
+    if input() != "y":
+        return False
 
     (_, path) = SteamDownloader.download([m.steamid for m in mods])
 
@@ -293,7 +273,7 @@ def update(args: list[str], config: Config):
 
 
 def export(args: list[str], config: Config):
-    mods = ModFolderReader.create_mods_list(config.path)
+    mods = ModFolder.create_mods_list(config.path)
     joined_args = " ".join(args[1:])
     ModListFile.write(Path(joined_args), mods, ModListV2Format())
     print(f"Mod list written to {joined_args}")
@@ -329,7 +309,7 @@ def _import(args: list[str], config: Config):
         return False
 
     (cache_mods, path) = SteamDownloader.download([n.steamid for n in mods])
-    game_mods = ModFolderReader.create_mods_list(config.path)
+    game_mods = ModFolder.create_mods_list(config.path)
     matched = []
     for m in game_mods:
         if m in mods:

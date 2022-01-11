@@ -144,7 +144,7 @@ class ModList(MutableSequence):
         return f"<ModList: {self.data.__repr__()}>"
 
 
-class ModFolderReader:
+class ModFolder:
     @staticmethod
     def create_mods_list(path: Path) -> ModList:
         with Pool(16) as p:
@@ -156,6 +156,21 @@ class ModFolderReader:
                 ),
             )
         return ModList(mods)
+
+    @staticmethod
+    def search(path: Path, search_term) -> ModList:
+        return ModList(
+            [
+                r
+                for r in ModFolder.create_mods_list(path)
+                if str.lower(search_term) in str.lower(r.name)
+                or str.lower(search_term) in str.lower(r.author)
+                or search_term == r.steamid
+            ]
+        )
+    # @staticmethod
+    # def remove(path: Path, search_term: str) -> bool:
+
 
 
 class ModListSerializer(ABC):
@@ -320,7 +335,7 @@ class SteamDownloader:
         )
         util.run_sh(query)
 
-        return (ModFolderReader.create_mods_list(mod_path), mod_path)
+        return (ModFolder.create_mods_list(mod_path), mod_path)
 
 
 class WorkshopResult:
