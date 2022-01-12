@@ -98,9 +98,9 @@ class Mod:
 
     def __eq__(self, other):
         if isinstance(other, Mod):
-            return self.packageid == other.packageid
+            return self.packageid.lower() == other.packageid.lower()
         if isinstance(other, str):
-            return self.packageid == other
+            return self.packageid.lower() == other.lower()
         if isinstance(other, int):
             return self.steamid == other
         return NotImplemented
@@ -168,9 +168,9 @@ class ModFolder:
                 or search_term == r.steamid
             ]
         )
+
     # @staticmethod
     # def remove(path: Path, search_term: str) -> bool:
-
 
 
 class ModListSerializer(ABC):
@@ -630,13 +630,13 @@ class ModsConfig:
         buffer = util.et_pretty_xml(self.root)
         print(buffer)
 
-        try:
-            with self.path.open("w+") as f:
-                f.seek(0)
-                f.write(buffer)
-        except OSError:
-            print("Unable to write ModsConfig")
-            raise
+        # try:
+        #     with self.path.open("w+") as f:
+        #         f.seek(0)
+        #         f.write(buffer)
+        # except OSError:
+        #     print("Unable to write ModsConfig")
+        #     raise
 
     def enable_mod(self, m: Mod):
         self.mods.append(m)

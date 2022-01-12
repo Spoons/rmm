@@ -243,6 +243,33 @@ def remove(args: list[str], config: Config):
         print(f"Uninstalling {n.packageid}")
 
 
+def config(args: list[str], config: Config):
+    game_mod_config = ModsConfig(PathFinder.find_config_defaults() / "Config/ModsConfig.xml")
+    installed_mods = ModFolder.create_mods_list(config.path)
+    enabled_mods = game_mod_config.mods
+
+    mod_state = []
+    for n in enabled_mods:
+        if n in installed_mods:
+            mod_state.append((n.packageid.lower(), True))
+
+    for n in installed_mods:
+        if n not in enabled_mods:
+            mod_state.append((n.packageid.lower(), False))
+
+    import multiselect, curses
+    mod_state = curses.wrapper(multiselect.multiselect_order_menu, mod_state)
+
+    new_mod_order = []
+    for n in mod_state:
+        if n[1] == True:
+            new_mod_order.append(Mod(n[0]))
+    game_mod_config.mods = new_mod_order
+    game_mod_config.write()
+
+
+
+
 def update(args: list[str], config: Config):
     mods = ModFolder.create_mods_list(config.path)
     mod_names = "\n  ".join([n.name for n in mods])
@@ -366,6 +393,7 @@ def run():
     actions = [
         "backup",
         "export",
+        "config",
         ("_import", "import"),
         ("_list", "list", "-Q"),
         ("query", "-Qs"),
