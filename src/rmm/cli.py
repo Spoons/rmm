@@ -20,6 +20,7 @@ from core import (
     PathFinder,
     SteamDownloader,
     WorkshopWebScraper,
+    ModsConfig,
 )
 from exception import InvalidSelectionException
 
@@ -256,7 +257,7 @@ def update(args: list[str], config: Config):
     if input() != "y":
         return False
 
-    (_, path) = SteamDownloader.download([m.steamid for m in mods])
+    (_, cache_path) = SteamDownloader.download([m.steamid for m in mods])
 
     for m in mods:
         print(f"Uninstalling {m.packageid}")
@@ -264,7 +265,7 @@ def update(args: list[str], config: Config):
             util.remove(m.path)
             print(f"Installing {m.packageid}")
             util.copy(
-                path / str(m.steamid),
+                cache_path / str(m.steamid),
                 config.path / str(m.steamid),
                 recursive=True,
             )
@@ -340,6 +341,12 @@ def run():
         except KeyError:
             config.path = PathFinder.find_game_defaults()
 
+    if not config.path:
+        print(
+            "\nUnable to find rimworld path.\nPlease set RMM_PATH environment variable to your mods folder.\nAlternative, use the -p directive: 'rmm -p game_path list'."
+        )
+        exit(1)
+
     if config.workshop_path:
         config.workshop_path = PathFinder.find_workshop(Path(config.workshop_path))
 
@@ -376,8 +383,8 @@ def run():
             globals()[command](sys.argv, config)
             sys.exit(0)
 
-    print(USAGE)
-    sys.exit(0)
+    # print(USAGE)
+    # sys.exit(0)
 
 
 if __name__ == "__main__":
@@ -392,9 +399,9 @@ if __name__ == "__main__":
     #         Path("~/.local/share/Steam/steamapps/common/RimWorld")
     #     )
     # )
-    # test = ModsConfig(PathFinder.find_config_defaults() / "Config/ModsConfig.xml")
-    # test.remove_mod(Mod("fluffy.desirepaths"))
-    # test.write()
+    test = ModsConfig(PathFinder.find_config_defaults() / "Config/ModsConfig.xml")
+    # test.remove_mod(Mod('jaxe.rimhud'))
+    test.write()
 
     # ModListFile.write(Path("/tmp/test_modlist"), mods, ModListV1Format())
     # print(len(ModListFile.read(Path("/tmp/test_modlist"), ModListV1Format())))

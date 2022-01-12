@@ -5,6 +5,7 @@ import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Generator, Optional, cast
+from xml.dom import minidom
 
 
 def platform() -> Optional[str]:
@@ -57,12 +58,12 @@ def remove(dest: Path):
     shutil.rmtree(dest)
 
 
-def list_intersection(a: list, b: list) -> list:
+def list_set_intersection(a: list, b: list) -> list:
     return list(set(a) & set(b))
 
 
-def list_quality_intersection(a: list, b: list) -> list:
-    return list(set(a) & set(b))
+def list_loop_intersection(a: list, b: list) -> list:
+    return [value for value in a if value in b]
 
 
 def list_grab(element: str, root: ET.Element) -> Optional[list[str]]:
