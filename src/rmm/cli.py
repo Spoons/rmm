@@ -367,11 +367,21 @@ def _import(args: list[str], config: Config):
 
     for n in mods:
         print(f"Installing {n.packageid}")
-        util.copy(
-            path / str(n.steamid),
-            config.path / str(n.steamid),
-            recursive=True,
-        )
+        try:
+            util.copy(
+                path / str(n.steamid),
+                config.path / str(n.steamid),
+                recursive=True,
+            )
+        except FileExistsError:
+            print("Detected collision. Removing collision: {}".format(n.path))
+            util.remove(n.path)
+            print(f"Installing {n.packageid}")
+            util.copy(
+                path / str(n.steamid),
+                config.path / str(n.steamid),
+                recursive=True,
+            )
 
 
 def run():
