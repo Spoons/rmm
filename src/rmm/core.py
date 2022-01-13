@@ -88,7 +88,7 @@ class Mod:
                         .encode("ascii", errors="ignore")
                         .decode()
                     )
-                except (OSError, ValueError) as e:
+                except (OSError, ValueError, IOError) as e:
                     print(e)
                     return None
 
