@@ -26,15 +26,15 @@ EXPANSION_PACKAGE_ID = [
 
 def lowercase_set(data):
     retval = set()
-    if data:
+    try:
         for n in data:
-            if type(n) == str:
+            try:
                 retval.add(n.lower())
-            else:
-                retval.add(n)
-        return retval
-    else:
+            except AttributeError:
+                continue
+    except TypeError:
         return None
+    return retval
 
         
 
@@ -723,11 +723,11 @@ class ModsConfig:
                 DG.add_edge(m.packageid, "ludeon.rimworld")
             if m.after:
                 for a in m.after:
-                    if a.lower() in self.mods:
+                    if a in self.mods:
                         DG.add_edge(a.lower(), m.packageid)
             if m.before:
                 for b in m.before:
-                    if b.lower() in self.mods:
+                    if b in self.mods:
                         DG.add_edge(m.packageid, b.lower())
 
         sorted_mods = reversed(list(nx.topological_sort(DG)))
