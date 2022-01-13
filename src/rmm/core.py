@@ -24,6 +24,19 @@ EXPANSION_PACKAGE_ID = [
     "ludeon.rimworld.royalty",
 ]
 
+def lowercase_set(data):
+    retval = set()
+    if data:
+        for n in data:
+            if type(n) == str:
+                retval.add(n.lower())
+            else:
+                retval.add(n)
+        return retval
+    else:
+        return None
+
+        
 
 class Mod:
     def __init__(
@@ -42,8 +55,9 @@ class Mod:
         workshop_managed: Optional[bool] = None,
     ):
         self.packageid = packageid.lower()
-        self.before = {n.lower() for n in before} if before else None
-        self.after = {n.lower() for n in after} if after else None
+
+        self.before = lowercase_set(before)
+        self.after = lowercase_set(after)
         self.incompatible = incompatible
         self.path = path
         self.author = author
