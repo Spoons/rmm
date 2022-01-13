@@ -16,6 +16,8 @@ from typing import Any, Generator, Iterable, Iterator, Optional, cast
 from bs4 import BeautifulSoup
 from exception import InvalidPackageHash
 
+
+
 import util
 
 EXPANSION_PACKAGE_ID = [
@@ -675,18 +677,22 @@ class ModsConfig:
 
         DG = nx.DiGraph()
 
+        before_core = ['brrainz.harmony', 'me.samboycoding.betterloading']
+
         expansion_load_order = [
             "ludeon.rimworld",
             "ludeon.rimworld.royalty",
             "ludeon.rimworld.ideology",
         ]
-        for n, pid in enumerate(expansion_load_order):
-            if pid not in self.mods:
-                del expansion_load_order[n]
 
-        for k in range(0, len(expansion_load_order)):
-            for j in range(k + 1, len(expansion_load_order)):
-                DG.add_edge(expansion_load_order[j], expansion_load_order[k])
+        combined_load_order = before_core + expansion_load_order
+        for n, pid in enumerate(combined_load_order):
+            if pid not in self.mods:
+                del combined_load_order[n]
+
+        for k in range(0, len(combined_load_order)):
+            for j in range(k + 1, len(combined_load_order)):
+                DG.add_edge(combined_load_order[j], combined_load_order[k])
 
         populated_mods = [m for m in mods if m in self.mods]
 
@@ -718,8 +724,17 @@ class ModsConfig:
                 pass
 
 
+        rocketman = False
+        if "krkr.rocketman" in populated_mods:
+            rocketman = True
+
+        if "murmur.walllight" in populated_mods and "juanlopez2008.lightsout" in populated_mods:
+            DG.add_edge("juanlopez2008.lightsout", "murmur.walllight")
+
         for m in populated_mods:
-            if not m == "brrainz.harmony":
+            if rocketman and m.packageid != 'krkr.rocketman':
+                DG.add_edge('krkr.rocketman', m.packageid)
+            if not m in combined_load_order:
                 DG.add_edge(m.packageid, "ludeon.rimworld")
             if m.after:
                 for a in m.after:
@@ -730,5 +745,18 @@ class ModsConfig:
                     if b in self.mods:
                         DG.add_edge(m.packageid, b.lower())
 
-        sorted_mods = reversed(list(nx.topological_sort(DG)))
-        self.mods = [Mod(n) for n in sorted_mods]
+        count = 0
+        while True:
+            try:
+                sorted_mods = reversed(list(nx.topological_sort(DG)))
+                self.mods = [Mod(n) for n in sorted_mods]
+                return
+            except nx.exception.NetworkXUnfeasible:
+                if count >= 10:
+                    print("Unable to break cycles")
+                    exit(0)
+                print("Cycle found. Breaking load order cycle")
+                cycle = nx.find_cycle(DG)
+                print(cycle)
+                DG.remove_edge(*cycle[0])
+                count += 1
