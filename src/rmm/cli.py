@@ -21,6 +21,7 @@ from core import (
     SteamDownloader,
     WorkshopWebScraper,
     ModsConfig,
+    EXPANSION_PACKAGE_ID,
 )
 from exception import InvalidSelectionException
 
@@ -28,27 +29,28 @@ USAGE = """
 RimWorld Mod Manager
 
 Usage:
-rmm backup <file>
-rmm export [options] <file>
-rmm import [options] <file>
-rmm list [options]
-rmm query [options] [<term>...]
-rmm remove [options] [<term>...]
+rmm [options] config
+rmm [options] export <file>
+rmm [options] import <file>
+rmm [options] list
+rmm [options] query [<term>...]
+rmm [options] remove [<term>...]
 rmm search <term>...
-rmm sync [options] [sync options] <name>...
-rmm update [options] [sync options]
+rmm [options] sort
+rmm [options] sync [sync options] <name>...
+rmm [options] update [sync options]
 rmm -h | --help
 rmm -v | --version
 
 Operations:
-backup            Backups your mod directory to a tar, gzip,
-                    bz2, or xz archive. Type inferred by name.
+config            Sort and enable/disable mods
 export            Save mod list to file.
 import            Install a mod list from a file.
 list              List installed mods.
 query             Search installed mods.
 remove            Remove installed mod.
 search            Search Workshop.
+sort              Auto-sort your modslist
 sync              Install or update a mod.
 update            Update all mods from Steam.
 
@@ -244,11 +246,16 @@ def remove(args: list[str], config: Config):
 
 
 def config(args: list[str], config: Config):
-    game_mod_config = ModsConfig(PathFinder.find_config_defaults() / "Config/ModsConfig.xml")
+    game_mod_config = ModsConfig(
+        PathFinder.find_config_defaults() / "Config/ModsConfig.xml"
+    )
     installed_mods = ModFolder.create_mods_list(config.path)
     enabled_mods = game_mod_config.mods
 
     mod_state = []
+    for n in enabled_mods:
+        if n in EXPANSION_PACKAGE_ID:
+            mod_state.append((n.packageid.lower(), True))
     for n in enabled_mods:
         if n in installed_mods:
             mod_state.append((n.packageid.lower(), True))
@@ -258,6 +265,7 @@ def config(args: list[str], config: Config):
             mod_state.append((n.packageid.lower(), False))
 
     import multiselect, curses
+
     mod_state = curses.wrapper(multiselect.multiselect_order_menu, mod_state)
 
     new_mod_order = []
@@ -268,6 +276,14 @@ def config(args: list[str], config: Config):
     game_mod_config.write()
 
 
+def sort(args: list[str], config: Config):
+    game_mod_config = ModsConfig(
+        PathFinder.find_config_defaults() / "Config/ModsConfig.xml"
+    )
+    installed_mods = ModFolder.create_mods_list(config.path)
+
+    game_mod_config.autosort(installed_mods, config)
+    game_mod_config.write()
 
 
 def update(args: list[str], config: Config):
@@ -394,6 +410,7 @@ def run():
         "backup",
         "export",
         "config",
+        "sort",
         ("_import", "import"),
         ("_list", "list", "-Q"),
         ("query", "-Qs"),
@@ -411,8 +428,8 @@ def run():
             globals()[command](sys.argv, config)
             sys.exit(0)
 
-    # print(USAGE)
-    # sys.exit(0)
+    print(USAGE)
+    sys.exit(0)
 
 
 if __name__ == "__main__":
@@ -427,9 +444,9 @@ if __name__ == "__main__":
     #         Path("~/.local/share/Steam/steamapps/common/RimWorld")
     #     )
     # )
-    test = ModsConfig(PathFinder.find_config_defaults() / "Config/ModsConfig.xml")
+    # test = ModsConfig(PathFinder.find_config_defaults() / "Config/ModsConfig.xml")
     # test.remove_mod(Mod('jaxe.rimhud'))
-    test.write()
+    # test.write()
 
     # ModListFile.write(Path("/tmp/test_modlist"), mods, ModListV1Format())
     # print(len(ModListFile.read(Path("/tmp/test_modlist"), ModListV1Format())))
