@@ -4,6 +4,7 @@ from __future__ import annotations
 import csv
 import re
 import tempfile
+from types import new_class
 import urllib.request
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
@@ -16,6 +17,12 @@ from bs4 import BeautifulSoup
 from exception import InvalidPackageHash
 
 import util
+
+EXPANSION_PACKAGE_ID = [
+    "ludeon.rimworld",
+    "ludeon.rimworld.ideology",
+    "ludeon.rimworld.royalty",
+]
 
 
 class Mod:
@@ -34,9 +41,9 @@ class Mod:
         repo_url: Optional[str] = None,
         workshop_managed: Optional[bool] = None,
     ):
-        self.packageid = packageid
-        self.before = before
-        self.after = after
+        self.packageid = packageid.lower()
+        self.before = {n.lower() for n in before} if before else None
+        self.after = {n.lower() for n in after} if after else None
         self.incompatible = incompatible
         self.path = path
         self.author = author
@@ -628,15 +635,17 @@ class ModsConfig:
             raise Exception("Unable to find 'activeMods' in ModsConfig")
 
         buffer = util.et_pretty_xml(self.root)
-        print(buffer)
 
-        # try:
-        #     with self.path.open("w+") as f:
-        #         f.seek(0)
-        #         f.write(buffer)
-        # except OSError:
-        #     print("Unable to write ModsConfig")
-        #     raise
+        try:
+            with self.path.open("w+") as f:
+                f.seek(0)
+                f.write(buffer)
+        except OSError:
+            print("Unable to write ModsConfig")
+            raise
+
+    def expansions(self):
+        pass
 
     def enable_mod(self, m: Mod):
         self.mods.append(m)
@@ -645,3 +654,67 @@ class ModsConfig:
         for k, v in enumerate(self.mods):
             if self.mods[k] == m:
                 del self.mods[k]
+
+    def autosort(self, mods, config):
+        import networkx as nx
+        import json
+
+        DG = nx.DiGraph()
+
+        expansion_load_order = [
+            "ludeon.rimworld",
+            "ludeon.rimworld.royalty",
+            "ludeon.rimworld.ideology",
+        ]
+        for n, pid in enumerate(expansion_load_order):
+            if pid not in self.mods:
+                del expansion_load_order[n]
+
+        for k in range(0, len(expansion_load_order)):
+            for j in range(k + 1, len(expansion_load_order)):
+                DG.add_edge(expansion_load_order[j], expansion_load_order[k])
+
+        populated_mods = [m for m in mods if m in self.mods]
+
+        # mods, path = SteamDownloader.download([ 1847679158 ])
+        # with (path / "1847679158/db/communityRules.json").open("r") as f:
+        #     community_db = json.load(f)
+
+        with (config.path / "1847679158/db/communityRules.json").open("r") as f:
+            community_db = json.load(f)
+
+        for pid in populated_mods:
+            try:
+                for j in community_db["rules"][pid.packageid]["loadAfter"]:
+                    if j:
+                        try:
+                            pid.before.add(j)
+                        except AttributeError:
+                            pid.before = set(j)
+            except KeyError:
+                pass
+            try:
+                for j in community_db["rules"][pid.packageid]["loadBefore"]:
+                    if j:
+                        try:
+                            pid.after.add(j)
+                        except AttributeError:
+                            pid.after = set(j)
+            except KeyError:
+                pass
+
+
+        for m in populated_mods:
+            if not m == "brrainz.harmony":
+                DG.add_edge(m.packageid, "ludeon.rimworld")
+            if m.after:
+                for a in m.after:
+                    if a.lower() in self.mods:
+                        DG.add_edge(a.lower(), m.packageid)
+            if m.before:
+                for b in m.before:
+                    if b.lower() in self.mods:
+                        DG.add_edge(m.packageid, b.lower())
+
+        sorted_mods = reversed(list(nx.topological_sort(DG)))
+        self.mods = [Mod(n) for n in sorted_mods]
