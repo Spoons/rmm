@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import importlib.metadata
 import os
+import re
 import sys
 from pathlib import Path
-from typing import cast, Optional
-
+from typing import NamedTuple, cast, Optional
+from collections import namedtuple
 from tabulate import tabulate
 
 import util
@@ -19,6 +20,7 @@ from core import (
     ModListV2Format,
     PathFinder,
     SteamDownloader,
+    WorkshopResult,
     WorkshopWebScraper,
     ModsConfig,
     EXPANSION_PACKAGE_ID,
@@ -67,20 +69,112 @@ Options:
 -w --workshop DIR Workshop Path.
 """
 
+class ModQueue(NamedTuple):
+    packageid: str|None
+    steamid: int|None
+    name: str|None
+    author: str|None
+
+    def title(self):
+        return self.packageid if self.packageid else f"{self.name} by {self.author}"
+
 
 class Config:
     def __init__(
-        self, path: Optional[Path] = None, workshop_path: Optional[Path] = None
+            self, path: Optional[Path] = None, workshop_path: Optional[Path] = None, config_path: Optional[Path] = None
     ):
         self.path = cast(Path, path)
         self.workshop_path = workshop_path
+        self.config_path = config_path
 
 
-def tabulate_mods(mods: ModList) -> str:
-    mods = sorted([[n.name, n.author[:20]] for n in mods])
+def expand_ranges(s: str) -> str:
+    return re.sub(
+        r"(\d+)-(\d+)",
+        lambda match: " ".join(
+            str(i) for i in range(int(match.group(1)), int(match.group(2)) + 1)
+        ),
+        s,
+    ).replace(",", " ")
+
+def install_mod(path, config, steamid: int):
+    if not steamid:
+        raise Exception("Missing SteamID")
+    util.copy(
+        path / str(steamid),
+        config.path / str(steamid),
+        recursive=True,
+    )
+    return True
+
+def create_mod_queue(mod_install_queue: list[Mod]|list[WorkshopResult]):
+    queue = set()
+    for n in mod_install_queue:
+        if isinstance(n, WorkshopResult):
+            queue.add(ModQueue(None, n.steamid, n.name, n.author))
+        elif isinstance(n, Mod):
+            queue.add(ModQueue(n.packageid, n.steamid, n.name, n.author))
+    return queue
+
+def remove_mod(mod: ModQueue, config: Config):
+    game_dir_mods = ModFolder.create_mods_list(config.path)
+
+    print(f"Uninstalling {mod.title()}")
+    util.remove((config.path / str(mod.steamid)))
+
+
+def remove_mods(mod_install_queue: list[Mod]|list[WorkshopResult], config: Config):
+    queue = create_mod_queue(mod_install_queue)
+    for mod in queue:
+        remove_mod(mod, config)
+
+
+def sync_mods(mod_install_queue: list[Mod]|list[WorkshopResult], config: Config):
+    (cache_mods, steam_cache_path) = SteamDownloader.download([ mod.steamid for mod in mod_install_queue if mod.steamid ])
+    game_dir_mods = ModFolder.create_mods_list(config.path)
+
+    queue = create_mod_queue(mod_install_queue)
+
+    for mod in queue:
+        success = False
+        try_install = False
+        try:
+            success = install_mod(steam_cache_path, config, mod.steamid)
+        except FileExistsError:
+            try_install = True
+            remove_mod(mod, config)
+        except FileNotFoundError:
+            print(f"Unable to download and install {mod.title()}\n\tDoes this mod still exist?")
+        finally:
+            if try_install:
+                success = install_mod(steam_cache_path, config, mod.steamid)
+        if success:
+            print(f"Installed {mod.title()}")
+
+
+def tabulate_mod_or_wr(mods: ModList|list[WorkshopResult], numbered=False, reverse=False, alpha=False) -> str:
+    if not mods:
+        return None
+    mod_list = [[n.name, n.author[:20]] for n in mods]
+    headers=["name", "author"]
+    if numbered:
+        headers=["no", "name", "author"],
+        new_list = []
+        offset = 0
+        if not reverse:
+            offset = len(mod_list) + 1
+        for k,v in enumerate(mod_list):
+            new_list.append([abs(k+1 - offset), v[0], v[1]])
+
+        mod_list = new_list
+    if alpha:
+        mod_list = sorted(mod_list)
+    if reverse:
+        mod_list = reversed(mod_list)
+
     return tabulate(
-        sorted(mods),
-        headers=["name", "author"],
+        mod_list,
+        headers=headers,
     )
 
 
@@ -123,12 +217,12 @@ def version(args: list[str], config: Config):
 
 
 def _list(args: list[str], config: Config):
-    print(tabulate_mods(ModFolder.create_mods_list(config.path)))
+    print(tabulate_mod_or_wr(ModFolder.create_mods_list(config.path)))
 
 
 def query(args: list[str], config: Config):
     search_term = " ".join(args[1:])
-    print(tabulate_mods(ModFolder.search(config.path, search_term)))
+    print(tabulate_mod_or_wr(ModFolder.search(config.path, search_term)))
 
 
 def search(args: list[str], config: Config):
@@ -137,58 +231,41 @@ def search(args: list[str], config: Config):
     print(tabulate([[r.name, r.author, r.num_ratings, r.description] for r in results]))
 
 
-def sync(args: list[str], config: Config):
-    joined_args = " ".join(args[1:])
-    results = WorkshopWebScraper.search(joined_args, reverse=True)
-    print(
-        tabulate(
-            [
-                [len(results) - k, r.name, r.author, r.num_ratings, r.description]
-                for k, r in enumerate(results)
-            ]
-        )
-    )
-    print("Packages to install (eg: 2)")
-
+def capture_range(length: int):
+    if length == 0:
+        return None
     while True:
         try:
-            selection = len(results) - int(input())
-            if selection >= len(results) or selection < 0:
-                raise InvalidSelectionException("Out of bounds")
+            selection = input()
+            selection = [length - int(s) + 1 for s in expand_ranges(selection).split(" ")]
+            for n in selection:
+                if n > length or n <= 0:
+                    raise InvalidSelectionException("Out of bounds")
             break
         except ValueError:
-            print("Must enter valid integer")
+            print("Must enter valid integer or range")
         except InvalidSelectionException:
             print("Selection out of bounds.")
 
-    selected = results[selection]
+    return selection
 
+def sync(args: list[str], config: Config):
+    joined_args = " ".join(args[1:])
+    results = WorkshopWebScraper.search(joined_args, reverse=True)
+
+    print(tabulate_mod_or_wr(results, numbered=True))
+
+    print("Packages to install (eg: 2 or 1-3)")
+    selection = capture_range(len(results))
+    if not selection:
+        exit(0)
+    queue = list( reversed([results[m - 1] for m in selection]) )
     print(
-        "Package(s): {} will be installed. Continue? [y/n] ".format(selected.name),
+        "Package(s): \n{} \n\nwill be installed. Continue? [y/n] ".format("  \n".join([f"{m.name} by {m.author}" for m in queue])),
         end="",
     )
 
-    if input() != "y":
-        return False
-
-    (mods, path) = SteamDownloader.download([selected.steamid])
-    mods_folder = ModFolder.create_mods_list(config.path)
-    matched = cast(list[Mod], [n for n in mods_folder if n == selected.steamid])
-    for n in matched:
-        print(f"Uninstalling {n.packageid}")
-        if n.path:
-            util.remove(n.path)
-        else:
-            print(f"Could not remove: {n.packageid}")
-
-    print(f"Installing {selected.name} by {selected.author}")
-    print(path / str(selected.steamid))
-    print(config.path)
-    util.copy(
-        path / str(selected.steamid),
-        config.path / str(selected.steamid),
-        recursive=True,
-    )
+    sync_mods(queue, config)
 
 
 def remove(args: list[str], config: Config):
@@ -199,37 +276,14 @@ def remove(args: list[str], config: Config):
         print(f"No packages matching {search_term}")
         return False
 
-    for n, element in enumerate(reversed(search_result)):
-        n = abs(n - len(search_result))
-        print("{}. {} by {}".format(n, element.name, element.author))
+    print(tabulate_mod_or_wr(search_result, reverse=True, numbered=True))
     print("Packages to remove (eg: 1 2 3 or 1-3)")
 
-    def expand_ranges(s):
-        import re
-
-        return re.sub(
-            r"(\d+)-(\d+)",
-            lambda match: " ".join(
-                str(i) for i in range(int(match.group(1)), int(match.group(2)) + 1)
-            ),
-            s,
-        )
-
-    while True:
-        try:
-            selection = input()
-            selection = [int(s) for s in expand_ranges(selection).split(" ")]
-            for n in selection:
-                if n > len(search_result) or n <= 0:
-                    raise InvalidSelectionException("Out of bounds")
-            break
-        except ValueError:
-            print("Must enter valid integer or range")
-        except InvalidSelectionException:
-            print("Selection out of bounds.")
+    selection = capture_range(len(search_result))
 
     remove_queue = [search_result[m - 1] for m in selection]
     print("Would you like to remove? ")
+
     for m in remove_queue:
         print("{} by {}".format(m.name, m.author))
 
@@ -238,11 +292,7 @@ def remove(args: list[str], config: Config):
     if input() != "y":
         return False
 
-    # (mods, path) = SteamDownloader.download([n.steamid for n in remove_queue])
-    mods_folder = ModFolder.create_mods_list(config.path)
-    matched = cast(list[Mod], [n for n in mods_folder if n in remove_queue])
-    for n in matched:
-        print(f"Uninstalling {n.packageid}")
+    remove_mods(remove_queue, config)
 
 
 def config(args: list[str], config: Config):
@@ -254,10 +304,7 @@ def config(args: list[str], config: Config):
 
     mod_state = []
     for n in enabled_mods:
-        if n in EXPANSION_PACKAGE_ID:
-            mod_state.append((n.packageid.lower(), True))
-    for n in enabled_mods:
-        if n in installed_mods:
+        if n in installed_mods + EXPANSION_PACKAGE_ID:
             mod_state.append((n.packageid.lower(), True))
 
     for n in installed_mods:
@@ -277,6 +324,7 @@ def config(args: list[str], config: Config):
 
 
 def sort(args: list[str], config: Config):
+    # TODO: fix this
     game_mod_config = ModsConfig(
         PathFinder.find_config_defaults() / "Config/ModsConfig.xml"
     )
@@ -288,6 +336,7 @@ def sort(args: list[str], config: Config):
 
 def update(args: list[str], config: Config):
     mods = ModFolder.create_mods_list(config.path)
+    mods = [ m for m in mods if m.steamid]
     mod_names = "\n  ".join([n.name for n in mods])
     print("Preparing to update following packages:")
     print(mod_names)
@@ -300,20 +349,7 @@ def update(args: list[str], config: Config):
     if input() != "y":
         return False
 
-    (_, cache_path) = SteamDownloader.download([m.steamid for m in mods])
-
-    for m in mods:
-        print(f"Uninstalling {m.packageid}")
-        if m.path:
-            util.remove(m.path)
-            print(f"Installing {m.packageid}")
-            util.copy(
-                cache_path / str(m.steamid),
-                config.path / str(m.steamid),
-                recursive=True,
-            )
-        else:
-            print(f"Could not remove: {m.packageid}")
+    sync_mods(mods, config)
 
 
 def export(args: list[str], config: Config):
@@ -325,23 +361,23 @@ def export(args: list[str], config: Config):
 
 def _import(args: list[str], config: Config):
     joined_args = " ".join(args[1:])
-    mods = ModListFile.read(Path(joined_args))
+    mod_install_queue = ModListFile.read(Path(joined_args))
 
-    if not mods:
+    if not mod_install_queue:
         print("No mods imported")
         exit(1)
 
-    mods = cast(list[Mod], mods)
+    mod_install_queue = [ n for n in mod_install_queue if n.steamid ]
 
     unknown = 0
-    for n in mods:
+    for mod in mod_install_queue:
         display = ""
-        if n.name:
-            display += n.name
-            if n.author:
-                display += f" by { n.author }"
-        elif n.packageid:
-            display = n.packageid
+        if mod.name:
+            display += mod.name
+            if mod.author:
+                display += f" by { mod.author }"
+        elif mod.packageid:
+            display = mod.packageid
         else:
             unknown += 1
         if display:
@@ -352,37 +388,8 @@ def _import(args: list[str], config: Config):
     if input() != "y":
         return False
 
-    (cache_mods, path) = SteamDownloader.download([n.steamid for n in mods])
-    game_mods = ModFolder.create_mods_list(config.path)
-    matched = []
-    for m in game_mods:
-        if m in mods:
-            matched.append(m)
-    for n in matched:
-        print(f"Uninstalling {n.packageid}")
-        if n.path:
-            util.remove(n.path)
-        else:
-            print(f"Could not remove: {n.packageid}")
 
-    for n in mods:
-        print(f"Installing {n.packageid}")
-        try:
-            util.copy(
-                path / str(n.steamid),
-                config.path / str(n.steamid),
-                recursive=True,
-            )
-        except FileExistsError:
-            print("Detected collision. Removing collision: {}".format(n.path))
-            util.remove(n.path)
-            print(f"Installing {n.packageid}")
-            util.copy(
-                path / str(n.steamid),
-                config.path / str(n.steamid),
-                recursive=True,
-            )
-
+    sync_mods(mod_install_queue, config)
 
 def run():
     config = parse_options()

@@ -66,8 +66,6 @@ def multiselect_order_menu(stdscr, data):
             selection = move_selection(selection, data, 1)
         elif k == curses.KEY_UP:
             selection = move_selection(selection, data, -1)
-        elif k == curses.KEY_NPAGE:
-            selection = move_selection(selection, data, -10)
         elif k == ord("j"):
             if check_bounds(selection, data, 1):
                 list_swap(data, selection, 1)
@@ -78,6 +76,8 @@ def multiselect_order_menu(stdscr, data):
                 selection = move_selection(selection, data, -1)
         elif k == curses.KEY_ENTER or k == 10 or k == 13:
             data[selection] = (data[selection][0], not data[selection][1])
+            selection = move_selection(selection, data, 1)
+
 
         elif k == ord("c"):
             return data

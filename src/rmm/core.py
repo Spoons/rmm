@@ -121,6 +121,11 @@ class Mod:
 
     def __eq__(self, other):
         if isinstance(other, Mod):
+            if self.packageid == "" or other.packageid == "":
+                if self.steamid and other.steamid:
+                    return self.steamid == other.steamid
+                else:
+                    return NotImplemented
             return self.packageid.lower() == other.packageid.lower()
         if isinstance(other, str):
             return self.packageid.lower() == other.lower()
@@ -735,7 +740,8 @@ class ModsConfig:
             if rocketman and m.packageid != 'krkr.rocketman':
                 DG.add_edge('krkr.rocketman', m.packageid)
             if not m in combined_load_order:
-                DG.add_edge(m.packageid, "ludeon.rimworld")
+                for n in combined_load_order:
+                    DG.add_edge(m.packageid, n)
             if m.after:
                 for a in m.after:
                     if a in self.mods:
