@@ -65,6 +65,8 @@ def list_set_intersection(a: list, b: list) -> list:
 def list_loop_intersection(a: list, b: list) -> list:
     return [value for value in a if value in b]
 
+def list_loop_exclusion(a: list, b: list) -> list:
+    return [value for value in a if value not in b]
 
 def list_grab(element: str, root: ET.Element) -> Optional[list[str]]:
     try:

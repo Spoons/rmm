@@ -1,24 +1,18 @@
 #!/bin/python3
 from __future__ import annotations
 
-import csv
 import re
 import tempfile
-from types import new_class
 import urllib.request
 import xml.etree.ElementTree as ET
-from abc import ABC, abstractmethod
-from collections.abc import MutableSequence
-from multiprocessing import Pool
 from pathlib import Path
-from typing import Any, Generator, Iterable, Iterator, Optional, cast
+from typing import Optional, cast
 
 from bs4 import BeautifulSoup
-from exception import InvalidPackageHash
-
-
 
 import util
+from mod import Mod, ModFolder
+from modlist import ModListFile, ModListV2Format
 
 EXPANSION_PACKAGE_ID = [
     "ludeon.rimworld",
@@ -26,312 +20,6 @@ EXPANSION_PACKAGE_ID = [
     "ludeon.rimworld.royalty",
 ]
 
-def lowercase_set(data):
-    retval = set()
-    try:
-        for n in data:
-            try:
-                retval.add(n.lower())
-            except AttributeError:
-                continue
-    except TypeError:
-        return None
-    return retval
-
-        
-
-class Mod:
-    def __init__(
-        self,
-        packageid: str,
-        before: Optional[list[str]] = None,
-        after: Optional[list[str]] = None,
-        incompatible: Optional[list[str]] = None,
-        path: Optional[Path] = None,
-        author: Optional[str] = None,
-        name: Optional[str] = None,
-        versions: Optional[list[str]] = None,
-        steamid: Optional[int] = None,
-        ignored: bool = False,
-        repo_url: Optional[str] = None,
-        workshop_managed: Optional[bool] = None,
-    ):
-        self.packageid = packageid.lower()
-
-        self.before = lowercase_set(before)
-        self.after = lowercase_set(after)
-        self.incompatible = incompatible
-        self.path = path
-        self.author = author
-        self.name = name
-        self.ignored = ignored
-        self.steamid = steamid
-        self.versions = versions
-        self.repo_url = repo_url
-        self.workshop_managed = workshop_managed
-
-    @staticmethod
-    def create_from_path(dirpath) -> Optional[Mod]:
-        try:
-            tree = ET.parse(dirpath / "About/About.xml")
-            root = tree.getroot()
-
-            try:
-                packageid = cast(str, cast(ET.Element, root.find("packageId")).text)
-            except AttributeError:
-                return None
-
-            def read_steamid(path: Path) -> Optional[int]:
-                try:
-                    return int(
-                        (path / "About" / "PublishedFileId.txt")
-                        .read_text()
-                        .strip()
-                        .encode("ascii", errors="ignore")
-                        .decode()
-                    )
-                except (OSError, ValueError, IOError) as e:
-                    print(e)
-                    return None
-
-            def read_ignored(path: Path):
-                try:
-                    return (path / ".rmm_ignore").is_file()
-                except (OSError) as e:
-                    print(e)
-                    return False
-
-            return Mod(
-                packageid,
-                before=util.list_grab("loadAfter", root),
-                after=util.list_grab("loadBefore", root),
-                incompatible=util.list_grab("incompatibleWith", root),
-                path=dirpath,
-                author=util.element_grab("author", root),
-                name=util.element_grab("name", root),
-                versions=util.list_grab("supportedVersions", root),
-                steamid=read_steamid(dirpath),
-                ignored=read_ignored(dirpath),
-            )
-
-        except OSError as e:
-            if not "Place mods here" in dirpath.name:
-                print(f"Ignoring {dirpath}")
-            return None
-
-    def __eq__(self, other):
-        if isinstance(other, Mod):
-            if self.packageid == "" or other.packageid == "":
-                if self.steamid and other.steamid:
-                    return self.steamid == other.steamid
-                else:
-                    return NotImplemented
-            return self.packageid.lower() == other.packageid.lower()
-        if isinstance(other, str):
-            return self.packageid.lower() == other.lower()
-        if isinstance(other, int):
-            return self.steamid == other
-        return NotImplemented
-
-    def __hash__(self, other):
-        if not self.packageid:
-            raise InvalidPackageHash()
-        return hash(self.packageid)
-
-    def __repr__(self):
-        return self.__str__()
-
-    def __str__(self):
-        return f"<Mod: '{self.packageid}'>"
-
-
-class ModList(MutableSequence):
-    def __init__(self, data: Iterable[Mod], name: Optional[str] = None):
-        if not isinstance(data, MutableSequence):
-            self.data = list(data)
-        else:
-            self.data = data
-        self.name = name
-
-    def __getitem__(self, key: int) -> Mod:
-        return self.data[key]
-
-    def __setitem__(self, key: int, value: Mod) -> None:
-        self.data[key] = value
-
-    def __delitem__(self, key: int) -> None:
-        del self.data[key]
-
-    def __len__(self) -> int:
-        return len(self.data)
-
-    def insert(self, i, x) -> None:
-        self.data[i] = x
-
-    def __repr__(self):
-        return f"<ModList: {self.data.__repr__()}>"
-
-
-class ModFolder:
-    @staticmethod
-    def create_mods_list(path: Path) -> ModList:
-        with Pool(16) as p:
-            mods = filter(
-                None,
-                p.map(
-                    Mod.create_from_path,
-                    path.iterdir(),
-                ),
-            )
-        return ModList(mods)
-
-    @staticmethod
-    def search(path: Path, search_term) -> ModList:
-        return ModList(
-            [
-                r
-                for r in ModFolder.create_mods_list(path)
-                if str.lower(search_term) in str.lower(r.name)
-                or str.lower(search_term) in str.lower(r.author)
-                or search_term == r.steamid
-            ]
-        )
-
-    # @staticmethod
-    # def remove(path: Path, search_term: str) -> bool:
-
-
-class ModListSerializer(ABC):
-    @classmethod
-    @abstractmethod
-    def parse(cls, text: str) -> Generator[Mod, None, None]:
-        pass
-
-    @classmethod
-    @abstractmethod
-    def serialize(cls, mods: MutableSequence) -> Generator[str, None, None]:
-        pass
-
-
-class CsvStringBuilder:
-    def __init__(self):
-        self.value = []
-
-    def write(self, row: str) -> None:
-        self.value.append(row)
-
-    def pop(self) -> None:
-        return self.value.pop()
-
-    def __iter__(self) -> Iterator[str]:
-        return iter(self.value)
-
-
-class ModListV2Format(ModListSerializer):
-    HEADER = {"PACKAGE_ID": 0, "STEAM_ID": 1, "REPO_URL": 2}
-    MAGIC_FLAG = "RMM_V2_MODLIST"
-
-    @classmethod
-    def parse(cls, text: str) -> Generator[Mod, None, None]:
-        reader = csv.reader(text.split("\n"))
-        for parsed in reader:
-            try:
-                yield Mod(
-                    parsed[cls.HEADER["PACKAGE_ID"]],
-                    steamid=int(parsed[cls.HEADER["STEAM_ID"]]),
-                    repo_url=parsed[cls.HEADER["REPO_URL"]] if not "" else None,
-                )
-            except (ValueError, IndexError):
-                if parsed:
-                    print("Unable to import: ", parsed)
-                continue
-
-    @classmethod
-    def serialize(cls, mods: MutableSequence) -> Generator[str, None, None]:
-        buffer = CsvStringBuilder()
-        writer = csv.writer(cast(Any, buffer))
-        for m in mods:
-            writer.writerow(cls.format(m))
-            yield buffer.pop().strip()
-
-    @classmethod
-    def format(cls, mod: Mod) -> list[str]:
-        return cast(
-            list[str],
-            [
-                mod.packageid,
-                str(mod.steamid) if not None else "",
-                mod.repo_url if not None else "",
-            ],
-        )
-
-
-class ModListV1Format(ModListSerializer):
-    STEAM_ID = 0
-
-    @classmethod
-    def parse(cls, text: str) -> Generator[Mod, None, None]:
-        name_exp = re.compile("(.*) by (.*)")
-        for line in text.split("\n"):
-            parsed = line.split("#", 1)
-            name = None
-            author = None
-            if len(parsed) == 2:
-                matches = re.findall(name_exp, parsed[1])
-                if matches and len(matches[0]) == 2:
-                    name = matches[0][0]
-                    author = matches[0][1]
-            try:
-                yield Mod(
-                    "",
-                    steamid=int(
-                        parsed[cls.STEAM_ID]
-                        .strip()
-                        .encode("ascii", errors="ignore")
-                        .decode()
-                    ),
-                    name=name,
-                    author=author,
-                )
-            except ValueError:
-                if line:
-                    print("Unable to import: ", line)
-                continue
-
-    @classmethod
-    def serialize(cls, mods: MutableSequence) -> Generator[str, None, None]:
-        for m in mods:
-            yield cls.format(m)
-
-    @classmethod
-    def format(cls, mod: Mod) -> str:
-        return "{}# {} by {} ".format(str(mod.steamid), mod.name, mod.author)
-
-
-class ModListFile:
-    @staticmethod
-    def read(path: Path) -> Optional[MutableSequence]:
-        try:
-            with path.open("r") as f:
-                text = f.read()
-        except OSError as e:
-            print(e)
-            return None
-
-        if re.search(r"^\s?[0-9]+\s?#.*$", text, re.MULTILINE):
-            return [m for m in ModListV1Format.parse(text)]
-
-        return [m for m in ModListV2Format.parse(text)]
-
-    @staticmethod
-    def write(path: Path, mods: MutableSequence, serializer: ModListSerializer):
-        try:
-            with path.open("w+") as f:
-                [f.write(line + "\n") for line in serializer.serialize(mods)]
-        except OSError as e:
-            print(e)
-            return False
-        return True
 
 
 class SteamDownloader:
@@ -363,7 +51,7 @@ class SteamDownloader:
         )
         util.run_sh(query)
 
-        return (ModFolder.create_mods_list(mod_path), mod_path)
+        return (ModFolder.read(mod_path), mod_path)
 
 
 class WorkshopResult:
@@ -406,6 +94,7 @@ class WorkshopResult:
         if not isinstance(other, WorkshopResult):
             raise NotImplementedError
         return self.steamid == other.steamid
+
 
     def _merge(self, other: WorkshopResult):
         if not isinstance(other, WorkshopResult):
@@ -471,7 +160,9 @@ class WorkshopWebScraper:
             rating = re.search(
                 "([1-5])(?:-star)",
                 str(results.find("div", class_="fileRatingDetails").img),
-            ).group(1)
+            )
+            if rating:
+                rating = rating.group(1)
         except AttributeError:
             rating = None
 
@@ -633,7 +324,7 @@ class ModsConfig:
                 list[str],
                 util.list_grab("activeMods", cast(ET.ElementTree, self.root)),
             )
-            self.mods = [Mod(pid) for pid in enabled]
+            self.mods = [Mod(packageid=pid) for pid in enabled]
         except TypeError:
             print("Unable to parse activeMods in ModsConfig")
             raise
@@ -677,8 +368,9 @@ class ModsConfig:
                 del self.mods[k]
 
     def autosort(self, mods, config):
-        import networkx as nx
         import json
+
+        import networkx as nx
 
         DG = nx.DiGraph()
 
@@ -755,7 +447,7 @@ class ModsConfig:
         while True:
             try:
                 sorted_mods = reversed(list(nx.topological_sort(DG)))
-                self.mods = [Mod(n) for n in sorted_mods]
+                self.mods = [Mod(packageid=n) for n in sorted_mods]
                 return
             except nx.exception.NetworkXUnfeasible:
                 if count >= 10:
