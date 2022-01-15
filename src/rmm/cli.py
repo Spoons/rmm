@@ -21,14 +21,14 @@ RimWorld Mod Manager
 
 Usage:
 rmm [options] config
-rmm [options] export [export option] <file>
+rmm [options] export [-e]|[-d] <file>
 rmm [options] import <file>
 rmm [options] list
 rmm [options] query [<term>...]
-rmm [options] remove [<term>...]
-rmm search <term>...
+rmm [options] remove [-f file]|[<term>...]
+rmm [options] search <term>...
 rmm [options] sort
-rmm [options] sync [sync options] <name>...
+rmm [options] sync <name>...
 rmm [options] update [sync options]
 rmm -h | --help
 rmm -v | --version
@@ -53,6 +53,9 @@ name              Name of mod.
 Export Option:
 -d                Export disabled mods to modlist.
 -e                Export enabled mods to modlist.
+
+Remove Options:
+-f                Remove mods listed in modlist.
 
 Options:
 -p --path DIR     RimWorld path.
