@@ -11,11 +11,10 @@ from typing import Optional, cast
 from tabulate import tabulate
 
 import util
-from core import (Mod, ModFolder, ModListFile, ModListV2Format, ModsConfig,
-                  PathFinder, SteamDownloader, WorkshopResult,
-                  WorkshopWebScraper)
+from core import (EXPANSION_PACKAGE_ID, Mod, ModFolder, ModsConfig, PathFinder,
+                  SteamDownloader, WorkshopResult, WorkshopWebScraper)
 from exception import InvalidSelectionException
-from modlist import ModListFile
+from modlist import ModListFile, ModListV2Format
 
 USAGE = """
 RimWorld Mod Manager
@@ -74,10 +73,10 @@ class Config():
     def __init__(
             self, path: Optional[Path] = None, workshop_path: Optional[Path] = None, config_path: Optional[Path] = None
     ):
-        self.game_path = cast(Path, path)
+        self.game_path = cast(Path|None, path)
         self.workshop_path = workshop_path
         self.config_path = config_path
-        self.mod_config = None
+        self.mod_config = cast(Path|None, None)
 
 
 def expand_ranges(s: str) -> str:
@@ -101,22 +100,32 @@ def install_mod(path, config, steamid: int):
 
 
 def remove_mod(mod: Mod, config: Config):
+    if not config.game_path:
+        raise Exception("Game path not defined")
     # game_dir_mods = ModFolder.create_mods_list(config.game_path)
 
     print(f"Uninstalling {mod.title()}")
-    util.remove((config.game_path / str(mod.steamid)))
+    mod_path = (config.game_path / str(mod.steamid))
+    if (mod_path):
+        util.remove(mod_path)
 
 
 def remove_mods(queue: list[Mod]|list[WorkshopResult], config: Config):
     for mod in queue:
+        if isinstance(mod, WorkshopResult):
+            mod = Mod.create_from_workshorp_result(mod)
         remove_mod(mod, config)
 
 
-def sync_mods(queue: ModList|list[Mod]|list[WorkshopResult], config: Config):
-    (cache_mods, steam_cache_path) = SteamDownloader.download([ mod.steamid for mod in queue if mod.steamid ])
+def sync_mods(queue: list[Mod]|list[WorkshopResult], config: Config):
+    (_, steam_cache_path) = SteamDownloader.download([ mod.steamid for mod in queue if mod.steamid ])
     # game_dir_mods = ModFolder.create_mods_list(config.game_path)
 
     for mod in queue:
+        if isinstance(mod, WorkshopResult):
+            mod = Mod.create_from_workshorp_result(mod)
+        if not isinstance(mod.steamid, int):
+            continue
         success = False
         try_install = False
         try:
@@ -133,13 +142,13 @@ def sync_mods(queue: ModList|list[Mod]|list[WorkshopResult], config: Config):
             print(f"Installed {mod.title()}")
 
 
-def tabulate_mod_or_wr(mods: ModList|list[WorkshopResult], numbered=False, reverse=False, alpha=False) -> str:
+def tabulate_mod_or_wr(mods: Optional[list[WorkshopResult]|list[Mod]], numbered=False, reverse=False, alpha=False) -> str:
     if not mods:
-        return None
-    mod_list = [[n.name, n.author[:20]] for n in mods]
+        return ""
+    mod_list = [[n.name, n.author[:20]] for n in mods if n.name and n.author]
     headers=["name", "author"]
     if numbered:
-        headers=["no", "name", "author"],
+        headers=["no", "name", "author"]
         new_list = []
         offset = 0
         if not reverse:
@@ -198,10 +207,14 @@ def version(args: list[str], config: Config):
 
 
 def _list(args: list[str], config: Config):
+    if not config.game_path:
+        raise Exception("Game path not defined")
     print(tabulate_mod_or_wr(ModFolder.read(config.game_path)))
 
 
 def query(args: list[str], config: Config):
+    if not config.game_path:
+        raise Exception("Game path not defined")
     search_term = " ".join(args[1:])
     print(tabulate_mod_or_wr(ModFolder.search(config.game_path, search_term)))
 
@@ -250,6 +263,8 @@ def sync(args: list[str], config: Config):
 
 
 def remove(args: list[str], config: Config):
+    if not config.game_path:
+        raise Exception("Game path not defined")
 
     remove_queue = None
     if args[1] == '-f':
@@ -270,7 +285,11 @@ def remove(args: list[str], config: Config):
         print("Packages to remove (eg: 1 2 3 or 1-3)")
 
         selection = capture_range(len(search_result))
-        remove_queue = ([search_result[m - 1] for m in selection])
+        if selection:
+            remove_queue = ([search_result[m - 1] for m in selection])
+        else:
+            print("No selection made.")
+            return
 
     print("Would you like to remove? ")
 
@@ -287,6 +306,10 @@ def remove(args: list[str], config: Config):
 
 
 def config(args: list[str], config: Config):
+    if not config.game_path:
+        raise Exception("Game path not defined")
+    if not config.mod_config:
+        raise Exception("ModsConfig.xml not found")
     installed_mods = ModFolder.read(config.game_path)
     mod_config = ModsConfig(config.mod_config)
     enabled_mods = mod_config.mods
@@ -294,11 +317,11 @@ def config(args: list[str], config: Config):
     mod_state = []
     for n in enabled_mods:
         if n in installed_mods + EXPANSION_PACKAGE_ID:
-            mod_state.append((n.packageid.lower(), True))
+            mod_state.append((n.packageid, True))
 
     for n in installed_mods:
         if n not in enabled_mods:
-            mod_state.append((n.packageid.lower(), False))
+            mod_state.append((n.packageid, False))
 
     import curses
 
@@ -315,6 +338,10 @@ def config(args: list[str], config: Config):
 
 
 def sort(args: list[str], config: Config):
+    if not config.game_path:
+        raise Exception("Game path not defined")
+    if not config.mod_config:
+        raise Exception("ModsConfig.xml not found")
     game_mod_config = ModsConfig(config.mod_config)
     installed_mods = ModFolder.read(config.game_path)
 
@@ -323,9 +350,11 @@ def sort(args: list[str], config: Config):
 
 
 def update(args: list[str], config: Config):
+    if not config.game_path:
+        raise Exception("Game path not defined")
     mod = ModFolder.read(config.game_path)
     modlist = cast(list[Mod], [ m for m in mod if m.steamid])
-    mod_names = "\n  ".join([n.name for n in modlist])
+    mod_names = "\n  ".join([n.name for n in modlist if n.name])
     print("Preparing to update following packages:")
     print(mod_names)
     print(
@@ -341,6 +370,8 @@ def update(args: list[str], config: Config):
 
 
 def export(args: list[str], config: Config):
+    if not config.game_path:
+        raise Exception("Game path not defined")
     mods = ModFolder.read(config.game_path)
     if args[1] == '-e':
         args = args[1:]
@@ -355,7 +386,6 @@ def export(args: list[str], config: Config):
     joined_args = " ".join(args[1:])
     ModListFile.write(Path(joined_args), mods, ModListV2Format())
     print(f"Mod list written to {joined_args}")
-
 
 def _import(args: list[str], config: Config):
     joined_args = " ".join(args[1:])
@@ -431,7 +461,10 @@ def run():
             config.config_path = PathFinder.find_config_defaults()
 
     if config.config_path:
-        config.mod_config = config.config_path / "Config/ModsConfig.xml"
+        config.config_path = cast(Path, config.config_path)
+        config.mod_config = Path(config.config_path / "Config/ModsConfig.xml")
+        if config.mod_config:
+            config.mod_config = cast(Path, config.mod_config)
 
     actions = [
         "export",

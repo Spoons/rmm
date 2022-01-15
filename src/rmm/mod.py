@@ -27,10 +27,10 @@ class Mod:
         repo_url: Optional[str] = None,
         workshop_managed: Optional[bool] = None,
     ):
-        if packageid and type( packageid ) == str:
+        if packageid and isinstance(packageid, str):
             self.packageid = packageid.lower()
         else:
-            self.packageid = self.packageid
+            self.packageid = packageid
         self.before = Mod.lowercase_set(before)
         self.after = Mod.lowercase_set(after)
         self.incompatible = incompatible
@@ -126,7 +126,7 @@ class Mod:
             return self.steamid == other
         return NotImplemented
 
-    def __hash__(self, other):
+    def __hash__(self):
         if not self.packageid:
             raise InvalidPackageHash()
         return hash(self.packageid)
@@ -157,6 +157,6 @@ class ModFolder:
         return [
                 r
                 for r in ModFolder.read(path)
-                if str.lower(search_term) in str.lower(r.name)
-                or str.lower(search_term) in str.lower(r.author)
+                if (isinstance(r.name, str) and search_term.lower() in r.name.lower())
+                or (isinstance(r.author, str) and search_term.lower() in r.author.lower())
                 or search_term == r.steamid ]

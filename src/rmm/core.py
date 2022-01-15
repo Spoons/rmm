@@ -12,19 +12,18 @@ from bs4 import BeautifulSoup
 
 import util
 from mod import Mod, ModFolder
-from modlist import ModListFile, ModListV2Format
 
 EXPANSION_PACKAGE_ID = [
-    "ludeon.rimworld",
-    "ludeon.rimworld.ideology",
-    "ludeon.rimworld.royalty",
+    Mod(packageid="ludeon.rimworld"),
+    Mod(packageid="ludeon.rimworld.ideology"),
+    Mod(packageid="ludeon.rimworld.royalty"),
 ]
 
 
 
 class SteamDownloader:
     @staticmethod
-    def download(mods: list[int]) -> tuple[ModList, Path]:
+    def download(mods: list[int]) -> tuple[list[Mod], Path]:
         home_path = None
         mod_path = None
         for d in Path("/tmp").iterdir():
@@ -63,7 +62,7 @@ class WorkshopResult:
         description=None,
         update_time=None,
         size=None,
-        num_rating=None,
+        # num_rating=None,
         rating=None,
         create_time=None,
         num_ratings=None,
@@ -90,7 +89,7 @@ class WorkshopResult:
     def __repr__(self):
         return self.__str__()
 
-    def __eq__(self, other: WorkshopResult) -> bool:
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, WorkshopResult):
             raise NotImplementedError
         return self.steamid == other.steamid
@@ -149,11 +148,15 @@ class WorkshopWebScraper:
         try:
             description = results.find(
                 "div", class_="workshopItemDescription"
-            ).get_text()
+            )
+            if description:
+                description = description.get_text()
         except AttributeError:
             description = None
         try:
-            num_ratings = results.find("div", class_="numRatings").get_text()
+            num_ratings = results.find("div", class_="numRatings")
+            if num_ratings:
+                num_ratings = num_ratings.get_text()
         except AttributeError:
             num_ratings = None
         try:
@@ -172,7 +175,7 @@ class WorkshopWebScraper:
             create_time=created,
             update_time=updated,
             description=description,
-            num_rating=num_ratings,
+            # num_rating=num_ratings,
             rating=rating,
         )
 
@@ -322,7 +325,7 @@ class ModsConfig:
         try:
             enabled = cast(
                 list[str],
-                util.list_grab("activeMods", cast(ET.ElementTree, self.root)),
+                util.list_grab("activeMods", self.root),
             )
             self.mods = [Mod(packageid=pid) for pid in enabled]
         except TypeError:
@@ -333,9 +336,12 @@ class ModsConfig:
 
     def write(self):
         active_mods = self.root.find("activeMods")
+        if not active_mods:
+            return
         try:
             for item in list(active_mods.findall("li")):
-                active_mods.remove(item)
+                if active_mods:
+                    active_mods.remove(item)
         except AttributeError:
             pass
 
@@ -363,7 +369,7 @@ class ModsConfig:
         self.mods.append(m)
 
     def remove_mod(self, m: Mod):
-        for k, v in enumerate(self.mods):
+        for k, _ in enumerate(self.mods):
             if self.mods[k] == m:
                 del self.mods[k]
 
