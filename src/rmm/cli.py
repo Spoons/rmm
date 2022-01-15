@@ -4,35 +4,25 @@ import importlib.metadata
 import os
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple, cast, Optional
-from collections import namedtuple
+from typing import Optional, cast
+
 from tabulate import tabulate
 
 import util
-
-from core import (
-    Mod,
-    ModFolder,
-    ModList,
-    ModListFile,
-    ModListSerializer,
-    ModListV2Format,
-    PathFinder,
-    SteamDownloader,
-    WorkshopResult,
-    WorkshopWebScraper,
-    ModsConfig,
-    EXPANSION_PACKAGE_ID,
-)
+from core import (Mod, ModFolder, ModListFile, ModListV2Format, ModsConfig,
+                  PathFinder, SteamDownloader, WorkshopResult,
+                  WorkshopWebScraper)
 from exception import InvalidSelectionException
+from modlist import ModListFile
 
 USAGE = """
 RimWorld Mod Manager
 
 Usage:
 rmm [options] config
-rmm [options] export <file>
+rmm [options] export [export option] <file>
 rmm [options] import <file>
 rmm [options] list
 rmm [options] query [<term>...]
@@ -61,31 +51,33 @@ term              Name, author, steamid
 file              File path
 name              Name of mod.
 
-Sync Options:
--f --force        Force mod directory overwrite
+Export Option:
+-d                Export disabled mods to modlist.
+-e                Export enabled mods to modlist.
 
 Options:
 -p --path DIR     RimWorld path.
 -w --workshop DIR Workshop Path.
+-u --user DIR     User config path.
+
+Environment Variables:
+RMM_PATH          Folder containings Mods
+RMM_WORKSHOP_PATH Folder containing Workshop mods (optional)
+RMM_USER_PATH     Folder containing saves and config
+
+Pathing Preference:
+CLI Argument > Environment Variable > Defaults
 """
 
-class ModQueue(NamedTuple):
-    packageid: str|None
-    steamid: int|None
-    name: str|None
-    author: str|None
-
-    def title(self):
-        return self.packageid if self.packageid else f"{self.name} by {self.author}"
-
-
-class Config:
+@dataclass
+class Config():
     def __init__(
             self, path: Optional[Path] = None, workshop_path: Optional[Path] = None, config_path: Optional[Path] = None
     ):
-        self.path = cast(Path, path)
+        self.game_path = cast(Path, path)
         self.workshop_path = workshop_path
         self.config_path = config_path
+        self.mod_config = None
 
 
 def expand_ranges(s: str) -> str:
@@ -102,38 +94,27 @@ def install_mod(path, config, steamid: int):
         raise Exception("Missing SteamID")
     util.copy(
         path / str(steamid),
-        config.path / str(steamid),
+        config.game_path / str(steamid),
         recursive=True,
     )
     return True
 
-def create_mod_queue(mod_install_queue: list[Mod]|list[WorkshopResult]):
-    queue = set()
-    for n in mod_install_queue:
-        if isinstance(n, WorkshopResult):
-            queue.add(ModQueue(None, n.steamid, n.name, n.author))
-        elif isinstance(n, Mod):
-            queue.add(ModQueue(n.packageid, n.steamid, n.name, n.author))
-    return queue
 
-def remove_mod(mod: ModQueue, config: Config):
-    game_dir_mods = ModFolder.create_mods_list(config.path)
+def remove_mod(mod: Mod, config: Config):
+    # game_dir_mods = ModFolder.create_mods_list(config.game_path)
 
     print(f"Uninstalling {mod.title()}")
-    util.remove((config.path / str(mod.steamid)))
+    util.remove((config.game_path / str(mod.steamid)))
 
 
-def remove_mods(mod_install_queue: list[Mod]|list[WorkshopResult], config: Config):
-    queue = create_mod_queue(mod_install_queue)
+def remove_mods(queue: list[Mod]|list[WorkshopResult], config: Config):
     for mod in queue:
         remove_mod(mod, config)
 
 
-def sync_mods(mod_install_queue: list[Mod]|list[WorkshopResult], config: Config):
-    (cache_mods, steam_cache_path) = SteamDownloader.download([ mod.steamid for mod in mod_install_queue if mod.steamid ])
-    game_dir_mods = ModFolder.create_mods_list(config.path)
-
-    queue = create_mod_queue(mod_install_queue)
+def sync_mods(queue: ModList|list[Mod]|list[WorkshopResult], config: Config):
+    (cache_mods, steam_cache_path) = SteamDownloader.download([ mod.steamid for mod in queue if mod.steamid ])
+    # game_dir_mods = ModFolder.create_mods_list(config.game_path)
 
     for mod in queue:
         success = False
@@ -190,7 +171,7 @@ def get_long_name_from_alias_map(word, _list):
 
 
 def parse_options() -> Config:
-    path_options = [("path", "--path", "-p"), ("workshop_path", "--workshop", "-w")]
+    path_options = [("path", "--path", "-p"), ("workshop_path", "--workshop", "-w"), ("user", "--user", "-u")]
 
     config = Config()
     del sys.argv[0]
@@ -217,12 +198,12 @@ def version(args: list[str], config: Config):
 
 
 def _list(args: list[str], config: Config):
-    print(tabulate_mod_or_wr(ModFolder.create_mods_list(config.path)))
+    print(tabulate_mod_or_wr(ModFolder.read(config.game_path)))
 
 
 def query(args: list[str], config: Config):
     search_term = " ".join(args[1:])
-    print(tabulate_mod_or_wr(ModFolder.search(config.path, search_term)))
+    print(tabulate_mod_or_wr(ModFolder.search(config.game_path, search_term)))
 
 
 def search(args: list[str], config: Config):
@@ -269,38 +250,46 @@ def sync(args: list[str], config: Config):
 
 
 def remove(args: list[str], config: Config):
-    search_term = " ".join(args[1:])
-    search_result = ModFolder.search(config.path, search_term)
 
-    if not search_result:
-        print(f"No packages matching {search_term}")
-        return False
+    remove_queue = None
+    if args[1] == '-f':
+        modlist_filename = args[2]
+        args = args[2:]
+        modlist_path = Path(modlist_filename)
+        remove_queue = ModListFile.read(modlist_path)
 
-    print(tabulate_mod_or_wr(search_result, reverse=True, numbered=True))
-    print("Packages to remove (eg: 1 2 3 or 1-3)")
+    if not remove_queue:
+        search_term = " ".join(args[1:])
+        search_result = ModFolder.search(config.game_path, search_term)
 
-    selection = capture_range(len(search_result))
+        if not search_result:
+            print(f"No packages matching {search_term}")
+            return False
 
-    remove_queue = [search_result[m - 1] for m in selection]
+        print(tabulate_mod_or_wr(search_result, reverse=True, numbered=True))
+        print("Packages to remove (eg: 1 2 3 or 1-3)")
+
+        selection = capture_range(len(search_result))
+        remove_queue = ([search_result[m - 1] for m in selection])
+
     print("Would you like to remove? ")
 
     for m in remove_queue:
-        print("{} by {}".format(m.name, m.author))
+        print( m.title())
 
     print("[y/n]: ", end="")
 
     if input() != "y":
+        print("nah")
         return False
 
     remove_mods(remove_queue, config)
 
 
 def config(args: list[str], config: Config):
-    game_mod_config = ModsConfig(
-        PathFinder.find_config_defaults() / "Config/ModsConfig.xml"
-    )
-    installed_mods = ModFolder.create_mods_list(config.path)
-    enabled_mods = game_mod_config.mods
+    installed_mods = ModFolder.read(config.game_path)
+    mod_config = ModsConfig(config.mod_config)
+    enabled_mods = mod_config.mods
 
     mod_state = []
     for n in enabled_mods:
@@ -311,33 +300,32 @@ def config(args: list[str], config: Config):
         if n not in enabled_mods:
             mod_state.append((n.packageid.lower(), False))
 
-    import multiselect, curses
+    import curses
+
+    import multiselect
 
     mod_state = curses.wrapper(multiselect.multiselect_order_menu, mod_state)
 
     new_mod_order = []
     for n in mod_state:
         if n[1] == True:
-            new_mod_order.append(Mod(n[0]))
-    game_mod_config.mods = new_mod_order
-    game_mod_config.write()
+            new_mod_order.append(Mod(packageid=n[0]))
+    mod_config.mods = new_mod_order
+    mod_config.write()
 
 
 def sort(args: list[str], config: Config):
-    # TODO: fix this
-    game_mod_config = ModsConfig(
-        PathFinder.find_config_defaults() / "Config/ModsConfig.xml"
-    )
-    installed_mods = ModFolder.create_mods_list(config.path)
+    game_mod_config = ModsConfig(config.mod_config)
+    installed_mods = ModFolder.read(config.game_path)
 
     game_mod_config.autosort(installed_mods, config)
     game_mod_config.write()
 
 
 def update(args: list[str], config: Config):
-    mods = ModFolder.create_mods_list(config.path)
-    mods = [ m for m in mods if m.steamid]
-    mod_names = "\n  ".join([n.name for n in mods])
+    mod = ModFolder.read(config.game_path)
+    modlist = cast(list[Mod], [ m for m in mod if m.steamid])
+    mod_names = "\n  ".join([n.name for n in modlist])
     print("Preparing to update following packages:")
     print(mod_names)
     print(
@@ -349,11 +337,21 @@ def update(args: list[str], config: Config):
     if input() != "y":
         return False
 
-    sync_mods(mods, config)
+    sync_mods(modlist, config)
 
 
 def export(args: list[str], config: Config):
-    mods = ModFolder.create_mods_list(config.path)
+    mods = ModFolder.read(config.game_path)
+    if args[1] == '-e':
+        args = args[1:]
+        if config.mod_config:
+            enabled = ModsConfig(config.mod_config).mods
+            mods = util.list_loop_intersection(enabled, mods)
+    if args[1] == '-d':
+        args = args[1:]
+        if config.mod_config:
+            enabled = ModsConfig(config.mod_config).mods
+            mods = util.list_loop_exclusion(mods, enabled)
     joined_args = " ".join(args[1:])
     ModListFile.write(Path(joined_args), mods, ModListV2Format())
     print(f"Mod list written to {joined_args}")
@@ -393,15 +391,15 @@ def _import(args: list[str], config: Config):
 
 def run():
     config = parse_options()
-    if config.path:
-        config.path = PathFinder.find_game(config.path)
-    if not config.path:
+    if config.game_path:
+        config.game_path = PathFinder.find_game(config.game_path)
+    if not config.game_path:
         try:
-            config.path = PathFinder.find_game(Path(os.environ["RMM_PATH"]))
+            config.game_path = PathFinder.find_game(Path(os.environ["RMM_PATH"]))
         except KeyError:
-            config.path = PathFinder.find_game_defaults()
+            config.game_path = PathFinder.find_game_defaults()
 
-    if not config.path:
+    if not config.game_path:
         print(
             "\nUnable to find rimworld path.\nPlease set RMM_PATH environment variable to your mods folder.\nAlternative, use the -p directive: 'rmm -p game_path list'."
         )
@@ -416,15 +414,26 @@ def run():
                 Path(os.environ["RMM_WORKSHOP_PATH"])
             )
         except KeyError:
-            if config.path:
+            if config.game_path:
                 config.workshop_path = PathFinder.get_workshop_from_game_path(
-                    Path(config.path)
+                    Path(config.game_path)
                 )
             else:
                 config.workshop_path = PathFinder.find_workshop_defaults()
 
+    if config.config_path:
+        config.config_path = PathFinder.find_game(config.config_path)
+
+    if not config.config_path:
+        try:
+            config.config_path = PathFinder.find_config(Path(os.environ["RMM_CONFIG_PATH"]))
+        except KeyError:
+            config.config_path = PathFinder.find_config_defaults()
+
+    if config.config_path:
+        config.mod_config = config.config_path / "Config/ModsConfig.xml"
+
     actions = [
-        "backup",
         "export",
         "config",
         "sort",

@@ -13,8 +13,6 @@ class AbortModOrderException(Exception):
 
 def multiselect_order_menu(stdscr, data):
     k = 0
-    cursor_x = 0
-    cursor_y = 0
 
     # Clear and refresh the screen for a blank canvas
     stdscr.clear()
@@ -144,7 +142,6 @@ def multiselect_order_menu(stdscr, data):
         # Wait for next input
         k = stdscr.getch()
 
-    return data
 
 
 def main():
