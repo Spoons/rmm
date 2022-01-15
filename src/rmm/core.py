@@ -403,7 +403,7 @@ class ModsConfig:
         # with (path / "1847679158/db/communityRules.json").open("r") as f:
         #     community_db = json.load(f)
 
-        with (config.path / "1847679158/db/communityRules.json").open("r") as f:
+        with (config.game_path / "1847679158/db/communityRules.json").open("r") as f:
             community_db = json.load(f)
 
         for pid in populated_mods:
@@ -464,3 +464,6 @@ class ModsConfig:
                 print(cycle)
                 DG.remove_edge(*cycle[0])
                 count += 1
+
+
+    print("Auto-sort complete")
