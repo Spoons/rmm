@@ -11,8 +11,9 @@ from typing import Optional, cast
 from tabulate import tabulate
 
 import util
-from core import (EXPANSION_PACKAGE_ID, Mod, ModFolder, ModsConfig, PathFinder,
-                  SteamDownloader, WorkshopResult, WorkshopWebScraper)
+from core import (EXPANSION_PACKAGES, Mod, ModFolder, ModsConfig, PathFinder,
+                  SteamDownloader, WorkshopResult, WorkshopWebScraper, Manager)
+from config import Config
 from exception import InvalidSelectionException
 from modlist import ModListFile, ModListV2Format
 
@@ -71,16 +72,6 @@ Pathing Preference:
 CLI Argument > Environment Variable > Defaults
 """
 
-@dataclass
-class Config():
-    def __init__(
-            self, path: Optional[Path] = None, workshop_path: Optional[Path] = None, config_path: Optional[Path] = None
-    ):
-        self.game_path = cast(Path|None, path)
-        self.workshop_path = workshop_path
-        self.config_path = config_path
-        self.mod_config = cast(Path|None, None)
-
 
 def expand_ranges(s: str) -> str:
     return re.sub(
@@ -91,58 +82,6 @@ def expand_ranges(s: str) -> str:
         s,
     ).replace(",", " ")
 
-def install_mod(path, config, steamid: int):
-    if not steamid:
-        raise Exception("Missing SteamID")
-    util.copy(
-        path / str(steamid),
-        config.game_path / str(steamid),
-        recursive=True,
-    )
-    return True
-
-
-def remove_mod(mod: Mod, config: Config):
-    if not config.game_path:
-        raise Exception("Game path not defined")
-    # game_dir_mods = ModFolder.create_mods_list(config.game_path)
-
-    print(f"Uninstalling {mod.title()}")
-    mod_path = (config.game_path / str(mod.steamid))
-    if (mod_path):
-        util.remove(mod_path)
-
-
-def remove_mods(queue: list[Mod]|list[WorkshopResult], config: Config):
-    for mod in queue:
-        if isinstance(mod, WorkshopResult):
-            mod = Mod.create_from_workshorp_result(mod)
-        remove_mod(mod, config)
-
-
-def sync_mods(queue: list[Mod]|list[WorkshopResult], config: Config):
-    (_, steam_cache_path) = SteamDownloader.download([ mod.steamid for mod in queue if mod.steamid ])
-    # game_dir_mods = ModFolder.create_mods_list(config.game_path)
-
-    for mod in queue:
-        if isinstance(mod, WorkshopResult):
-            mod = Mod.create_from_workshorp_result(mod)
-        if not isinstance(mod.steamid, int):
-            continue
-        success = False
-        try_install = False
-        try:
-            success = install_mod(steam_cache_path, config, mod.steamid)
-        except FileExistsError:
-            try_install = True
-            remove_mod(mod, config)
-        except FileNotFoundError:
-            print(f"Unable to download and install {mod.title()}\n\tDoes this mod still exist?")
-        finally:
-            if try_install:
-                success = install_mod(steam_cache_path, config, mod.steamid)
-        if success:
-            print(f"Installed {mod.title()}")
 
 
 def tabulate_mod_or_wr(mods: Optional[list[WorkshopResult]|list[Mod]], numbered=False, reverse=False, alpha=False) -> str:
@@ -198,35 +137,34 @@ def parse_options() -> Config:
     return config
 
 
-def help(args: list[str], config: Config):
+def help(args: list[str], manager: Manager):
     print(USAGE)
 
 
-def version(args: list[str], config: Config):
+def version(args: list[str], manager: Manager):
     try:
         print(importlib.metadata.version("rmm-spoons"))
     except importlib.metadata.PackageNotFoundError:
         print("version unknown")
 
 
-def _list(args: list[str], config: Config):
-    if not config.game_path:
+def _list(args: list[str], manager: Manager):
+    if not manager.config.mod_path:
         raise Exception("Game path not defined")
-    print(tabulate_mod_or_wr(ModFolder.read(config.game_path)))
+    print(tabulate_mod_or_wr(manager.installed_mods()))
 
 
-def query(args: list[str], config: Config):
-    if not config.game_path:
+def query(args: list[str], manager: Manager):
+    if not manager.config.mod_path:
         raise Exception("Game path not defined")
     search_term = " ".join(args[1:])
-    print(tabulate_mod_or_wr(ModFolder.search(config.game_path, search_term)))
+    print(tabulate_mod_or_wr(manager.search_installed(search_term)))
 
 
-def search(args: list[str], config: Config):
+def search(args: list[str], manager: Manager):
     joined_args = " ".join(args[1:])
     results = WorkshopWebScraper.search(joined_args, reverse=True)
-    print(tabulate([[r.name, r.author, r.num_ratings, r.description] for r in results]))
-
+    print(tabulate_mod_or_wr(results))
 
 def capture_range(length: int):
     if length == 0:
@@ -246,12 +184,10 @@ def capture_range(length: int):
 
     return selection
 
-def sync(args: list[str], config: Config):
+def sync(args: list[str], manager: Manager):
     joined_args = " ".join(args[1:])
     results = WorkshopWebScraper.search(joined_args, reverse=True)
-
     print(tabulate_mod_or_wr(results, numbered=True))
-
     print("Packages to install (eg: 2 or 1-3)")
     selection = capture_range(len(results))
     if not selection:
@@ -262,11 +198,11 @@ def sync(args: list[str], config: Config):
         end="",
     )
 
-    sync_mods(queue, config)
+    manager.sync_mods(queue)
 
 
-def remove(args: list[str], config: Config):
-    if not config.game_path:
+def remove(args: list[str], manager: Manager):
+    if not manager.config.mod_path:
         raise Exception("Game path not defined")
 
     remove_queue = None
@@ -278,7 +214,7 @@ def remove(args: list[str], config: Config):
 
     if not remove_queue:
         search_term = " ".join(args[1:])
-        search_result = ModFolder.search(config.game_path, search_term)
+        search_result = manager.search_installed(search_term)
 
         if not search_result:
             print(f"No packages matching {search_term}")
@@ -305,21 +241,20 @@ def remove(args: list[str], config: Config):
         print("nah")
         return False
 
-    remove_mods(remove_queue, config)
+    manager.remove_mods(remove_queue)
 
 
-def config(args: list[str], config: Config):
-    if not config.game_path:
+def config(args: list[str], manager: Manager):
+    if not manager.config.mod_path:
         raise Exception("Game path not defined")
-    if not config.mod_config:
+    if not manager.config.modsconfig_path:
         raise Exception("ModsConfig.xml not found")
-    installed_mods = ModFolder.read(config.game_path)
-    mod_config = ModsConfig(config.mod_config)
-    enabled_mods = mod_config.mods
+    installed_mods = manager.installed_mods()
+    enabled_mods = manager.enabled_mods()
 
     mod_state = []
     for n in enabled_mods:
-        if n in installed_mods + EXPANSION_PACKAGE_ID:
+        if n in installed_mods + EXPANSION_PACKAGES:
             mod_state.append((n.packageid, True))
 
     for n in installed_mods:
@@ -327,7 +262,6 @@ def config(args: list[str], config: Config):
             mod_state.append((n.packageid, False))
 
     import curses
-
     import multiselect
 
     mod_state = curses.wrapper(multiselect.multiselect_order_menu, mod_state)
@@ -336,30 +270,26 @@ def config(args: list[str], config: Config):
     for n in mod_state:
         if n[1] == True:
             new_mod_order.append(Mod(packageid=n[0]))
-    mod_config.mods = new_mod_order
-    mod_config.write()
+    manager.modsconfig.mods = new_mod_order
+    manager.modsconfig.write()
 
 
-def sort(args: list[str], config: Config):
-    if not config.game_path:
+def sort(args: list[str], manager: Manager):
+    if not manager.config.mod_path:
         raise Exception("Game path not defined")
-    if not config.mod_config:
+    if not manager.config.modsconfig_path:
         raise Exception("ModsConfig.xml not found")
-    game_mod_config = ModsConfig(config.mod_config)
-    installed_mods = ModFolder.read(config.game_path)
 
-    game_mod_config.autosort(installed_mods, config)
-    game_mod_config.write()
+    manager.modsconfig.autosort(manager.installed_mods(), manager.config)
+    manager.modsconfig.write()
 
 
-def update(args: list[str], config: Config):
-    if not config.game_path:
+def update(args: list[str], manager: Manager):
+    if not manager.config.mod_path:
         raise Exception("Game path not defined")
-    mod = ModFolder.read(config.game_path)
-    modlist = cast(list[Mod], [ m for m in mod if m.steamid])
-    mod_names = "\n  ".join([n.name for n in modlist if n.name])
+    installed_mods_names = "\n  ".join([n.name for n in manager.installed_mods() if n.name])
     print("Preparing to update following packages:")
-    print(mod_names)
+    print(installed_mods_names)
     print(
         "\nThe action will overwrite any changes to the mod directory\n"
         "Add a .rmm_ignore to your mod directory to exclude it frome this list.\n"
@@ -369,28 +299,24 @@ def update(args: list[str], config: Config):
     if input() != "y":
         return False
 
-    sync_mods(modlist, config)
+    manager.sync_mods(manager.installed_mods())
 
 
-def export(args: list[str], config: Config):
-    if not config.game_path:
+def export(args: list[str], manager: Manager):
+    if not manager.config.mod_path:
         raise Exception("Game path not defined")
-    mods = ModFolder.read(config.game_path)
     if args[1] == '-e':
-        args = args[1:]
-        if config.mod_config:
-            enabled = ModsConfig(config.mod_config).mods
-            mods = util.list_loop_intersection(enabled, mods)
-    if args[1] == '-d':
-        args = args[1:]
-        if config.mod_config:
-            enabled = ModsConfig(config.mod_config).mods
-            mods = util.list_loop_exclusion(mods, enabled)
+        mods = manager.enabled_mods()
+    elif args[1] == '-d':
+        mods = manager.disabled_mods()
+    else:
+        mods = manager.installed_mods()
+
     joined_args = " ".join(args[1:])
     ModListFile.write(Path(joined_args), mods, ModListV2Format())
     print(f"Mod list written to {joined_args}")
 
-def _import(args: list[str], config: Config):
+def _import(args: list[str], manager: Manager):
     joined_args = " ".join(args[1:])
     mod_install_queue = ModListFile.read(Path(joined_args))
 
@@ -420,19 +346,19 @@ def _import(args: list[str], config: Config):
         return False
 
 
-    sync_mods(mod_install_queue, config)
+    manager.sync_mods(mod_install_queue)
 
 def run():
     config = parse_options()
-    if config.game_path:
-        config.game_path = PathFinder.find_game(config.game_path)
-    if not config.game_path:
+    if config.mod_path:
+        config.mod_path = PathFinder.find_game(config.mod_path)
+    if not config.mod_path:
         try:
-            config.game_path = PathFinder.find_game(Path(os.environ["RMM_PATH"]))
+            config.mod_path = PathFinder.find_game(Path(os.environ["RMM_PATH"]))
         except KeyError:
-            config.game_path = PathFinder.find_game_defaults()
+            config.mod_path = PathFinder.find_game_defaults()
 
-    if not config.game_path:
+    if not config.mod_path:
         print(
             "\nUnable to find rimworld path.\nPlease set RMM_PATH environment variable to your mods folder.\nAlternative, use the -p directive: 'rmm -p game_path list'."
         )
@@ -447,9 +373,9 @@ def run():
                 Path(os.environ["RMM_WORKSHOP_PATH"])
             )
         except KeyError:
-            if config.game_path:
+            if config.mod_path:
                 config.workshop_path = PathFinder.get_workshop_from_game_path(
-                    Path(config.game_path)
+                    Path(config.mod_path)
                 )
             else:
                 config.workshop_path = PathFinder.find_workshop_defaults()
@@ -465,9 +391,11 @@ def run():
 
     if config.config_path:
         config.config_path = cast(Path, config.config_path)
-        config.mod_config = Path(config.config_path / "Config/ModsConfig.xml")
-        if config.mod_config:
-            config.mod_config = cast(Path, config.mod_config)
+        config.modsconfig_path = Path(config.config_path / "Config/ModsConfig.xml")
+        if config.modsconfig_path:
+            config.modsconfig_path = cast(Path, config.modsconfig_path)
+
+    manager = Manager(config)
 
     actions = [
         "export",
@@ -487,7 +415,7 @@ def run():
     if sys.argv:
         command = get_long_name_from_alias_map(sys.argv[0], actions)
         if command and command in globals():
-            globals()[command](sys.argv, config)
+            globals()[command](sys.argv, manager)
             sys.exit(0)
 
     print(USAGE)
@@ -496,24 +424,3 @@ def run():
 
 if __name__ == "__main__":
     run()
-
-    # Create test mod list
-    # mods = ModFolderReader.create_mods_list(PathFinder.find_game(Path("~/games")))
-    # print(mods)
-
-    # print(
-    #     PathFinder.get_workshop_from_game_path(
-    #         Path("~/.local/share/Steam/steamapps/common/RimWorld")
-    #     )
-    # )
-    # test = ModsConfig(PathFinder.find_config_defaults() / "Config/ModsConfig.xml")
-    # test.remove_mod(Mod('jaxe.rimhud'))
-    # test.write()
-
-    # ModListFile.write(Path("/tmp/test_modlist"), mods, ModListV1Format())
-    # print(len(ModListFile.read(Path("/tmp/test_modlist"), ModListV1Format())))
-
-    # results = list(WorkshopWebScraper.search("rimhud"))
-    # for n in range(1):
-    #     print(results[n].get_details())
-    #     print()

@@ -18,7 +18,7 @@ class Mod:
         before: Optional[list[str]] = None,
         after: Optional[list[str]] = None,
         incompatible: Optional[list[str]] = None,
-        path: Optional[Path] = None,
+        dirname: Optional[Path] = None,
         author: Optional[str] = None,
         name: Optional[str] = None,
         versions: Optional[list[str]] = None,
@@ -34,7 +34,7 @@ class Mod:
         self.before = Mod.lowercase_set(before)
         self.after = Mod.lowercase_set(after)
         self.incompatible = incompatible
-        self.path = path
+        self.dirname = dirname
         self.author = author
         self.name = name
         self.ignored = ignored
@@ -64,9 +64,9 @@ class Mod:
         return Mod(steamid=wr.steamid, name=wr.name, author=wr.author)
 
     @staticmethod
-    def create_from_path(dirpath) -> Optional[Mod]:
+    def create_from_path(path) -> Optional[Mod]:
         try:
-            tree = ET.parse(dirpath / "About/About.xml")
+            tree = ET.parse(path / "About/About.xml")
             root = tree.getroot()
 
             try:
@@ -99,30 +99,28 @@ class Mod:
                 before=util.list_grab("loadAfter", root),
                 after=util.list_grab("loadBefore", root),
                 incompatible=util.list_grab("incompatibleWith", root),
-                path=dirpath,
+                dirname=path.name,
                 author=util.element_grab("author", root),
                 name=util.element_grab("name", root),
                 versions=util.list_grab("supportedVersions", root),
-                steamid=read_steamid(dirpath),
-                ignored=read_ignored(dirpath),
+                steamid=read_steamid(path),
+                ignored=read_ignored(path),
             )
 
         except OSError:
-            if not "Place mods here" in dirpath.name:
-                print(f"Ignoring {dirpath}")
+            if not "Place mods here" in path.name:
+                print(f"Ignoring {path}")
             return None
 
     def __eq__(self, other):
         if isinstance(other, Mod):
-            if self.packageid == "" or other.packageid == "":
-                if self.steamid and other.steamid:
-                    return self.steamid == other.steamid
-                else:
-                    return NotImplemented
-            return self.packageid.lower() == other.packageid.lower()
-        if isinstance(other, str):
+            if self.packageid and other.packageid:
+                return self.packageid == other.packageid
+            if self.steamid and other.steamid:
+                return self.steamid == other.steamid
+        if isinstance(other, str) and self.packageid:
             return self.packageid.lower() == other.lower()
-        if isinstance(other, int):
+        if isinstance(other, int) and self.steamid:
             return self.steamid == other
         return NotImplemented
 
