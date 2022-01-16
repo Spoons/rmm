@@ -1,21 +1,39 @@
 # RMM: RimWorld Mod Manager
+# 1.0 Release
 
-RMM is an open source RimWorld mod manager designed for Unix systems. RMM uses the SteamCMD binary to download mods. 
+Do you dislike DRM based platforms but love RimWorld and it's mods? RMM is cross platform mod manager that allows you to download, update, auto-sort, and configure mods for the game without relying on the Steam consumer client. RMM has a keyboard based interface that is easy to use and will be familiar to Linux users and developers. 
 
-## MOD DEVELOPERS PLEASE READ:
-
-When using `rmm update`, rmm will update all mods in your game path and will overwrite your development folder with the latest version from Steam. To prevent all destructive writes, create a `.rmm_ignore` file in your Mods directory. 
+RMM v1.0 supports Windows, Linux, and MacOS. 
 
 ## Prerequisites
 
 To use RMM you need:
 - SteamCMD installed and in your path.
-- [Optional] Set RMM_PATH to game path if game is installed in non default location.
-  Alternative, you can use the `-p` flag to tell RMM where RimWorld is.
+- Set RMM_PATH to game path if game is installed in non default location.
 
-#### Install SteamCMD
+# Installation for Arch Linux
 
-1. A. For Arch Linux, you can install steamcmd using makepkg as stated below:
+RMM has an AUR package 'rmm'. The package brings in all dependencies, including steamcmd, and can be installed with makepkg and git or an AUR helper as shown below. No other steps are required:
+
+a. Makepkg:
+``` sh
+mkdir -p ~/build ; cd ~/build
+git clone https://aur.archlinux.org/rmm.git
+cd rmm
+makepkg -si
+```
+
+b. yay (AUR Helper)
+``` sh
+yay -S rmm
+```
+
+
+# Installation via PIP (PyPi)
+
+## 1. Install SteamCMD
+
+For Arch Linux, you can install steamcmd using makepkg as stated below:
 ``` sh
 mkdir -p ~/build ; cd ~/build
 git clone https://aur.archlinux.org/steamcmd.git
@@ -23,35 +41,43 @@ cd steamcmd
 makepkg -si
 ```
 
-1. B. Alternatively, you can install it using a 'AUR Helper' such as yay.
+Alternatively, you can install it using a 'AUR Helper' such as yay.
 ``` sh
 yay -S steamcmd
 ```
 
-2. Verify steamcmd is correctly installed:
+Verify steamcmd is correctly installed with the below command:
 ``` sh
 whereis steamcmd
 ```
 
-Should return a path such as below. Otherwise check to make sure steamcmd is in your path.
+`whereis` should return a path such as below. Otherwise, ensure steamcmd is in your PATH.
 ``` sh
 steamcmd: /usr/bin/steamcmd /usr/share/steamcmd
 ```
 
-#### Adding .local/bin to your PATH
+## 2. Adding .local/bin to your PATH
 
 RMM can be directly accessed with command `rmm`. In order for this to work, you need to add `~/.local/bin` to your PATH variable, otherwise, your terminal will not find the `rmm` script. If you notice that you cannot run `rmm` after installation, try the following:
+
 ``` sh
 echo 'export PATH="$PATH:$HOME/.local/bin" >> ~/.bashrc
 ```
 
-Alternatively, RMM can always be accessed by
+Alternatively, RMM can always called with:
+
 ``` sh
 python -m rmm
 ```
 
+## 3. Installing package from PIP
 
-#### Set RMM_PATH (Optional)
+``` sh
+python3 -m pip install --user rmm-spoons
+```
+
+# Configuration
+## Set RMM_PATH (Optional)
 
 If RimWorld is installed a directory other than the default ones, you should set the RMM_PATH variable to your game directory for convenience.
 
@@ -66,7 +92,7 @@ Temporarily set it during your shell session:
 export RMM_PATH="~/PATHTOGAME/game/Mods"
 ```
 
-#### Set RMM_WORKSHOP_PATH (Optional)
+## Set RMM_WORKSHOP_PATH (Optional)
 
 You probably do not need to set this variable.
 
@@ -76,14 +102,7 @@ RMM supports managing mods in your Steam Workshop mods directory. If RimWorld is
 echo 'export RMM_WORKSHOP_PATH="$HOME/.local/share/Steam/steamapps/workshop" >> ~/.bashrc
 ```
 
-## Installng RMM from PyPi (Recommended)
-
-``` sh
-python3 -m pip install --user rmm-spoons
-```
-
-
-## Installation for Development (Developers)
+# Installation for Development (Developers)
 
 Clone repository and install with pip.
 ```
@@ -92,40 +111,60 @@ git clone https://github.com/Spoons/rmm.git ~/build/rmm
 pip install --user ~/build/rmm
 ```
 
-## Usage
+# Usage
 ```
 RimWorld Mod Manager
 
 Usage:
-  rmm export [options] <file>
-  rmm import [options] <file>
-  rmm list [options]
-  rmm migrate [options]
-  rmm query [options] [<term>...]
-  rmm remove [options] [<term>...]
-  rmm search <term>...
-  rmm sync [options] <name>...
-  rmm update [options]
-  rmm -h | --help
-  rmm -v | --version
+rmm [options] config
+rmm [options] export [-e]|[-d] <file>
+rmm [options] import <file>
+rmm [options] list
+rmm [options] query [<term>...]
+rmm [options] remove [-f file]|[<term>...]
+rmm [options] search <term>...
+rmm [options] sort
+rmm [options] sync <name>...
+rmm [options] update [sync options]
+rmm -h | --help
+rmm -v | --version
 
 Operations:
-  export            Save mod list to file.
-  list              List installed mods.
-  migrate           Remove mods from workshop and install locally.
-  query             Search installed mods.
-  remove            Remove installed mod.
-  search            Search Workshop.
-  sync              Install mod.
+config            Sort and enable/disable mods
+export            Save mod list to file.
+import            Install a mod list from a file.
+list              List installed mods.
+query             Search installed mods.
+remove            Remove installed mod.
+search            Search Workshop.
+sort              Auto-sort your modslist
+sync              Install or update a mod.
+update            Update all mods from Steam.
 
 Parameters
-  term              Name, author, steamid
-  file              File path
-  name              Name of mod.
+term              Name, author, steamid
+file              File path
+name              Name of mod.
+
+Export Option:
+-d                Export disabled mods to modlist.
+-e                Export enabled mods to modlist.
+
+Remove Options:
+-f                Remove mods listed in modlist.
 
 Options:
-  -p --path DIR     RimWorld path.
-  -w --workshop DIR Workshop Path.
+-p --path DIR     RimWorld path.
+-w --workshop DIR Workshop Path.
+-u --user DIR     User config path.
+
+Environment Variables:
+RMM_PATH          Folder containings Mods
+RMM_WORKSHOP_PATH Folder containing Workshop mods (optional)
+RMM_USER_PATH     Folder containing saves and config
+
+Pathing Preference:
+CLI Argument > Environment Variable > Defaults
 ```
 
 ## How To
