@@ -2,20 +2,30 @@
 
 from pathlib import Path
 from typing import Optional
+import rmm.util as util
 
 
 class PathFinder:
     DEFAULT_GAME_PATHS = [
         "~/GOG Games/RimWorld",
         "~/.local/share/Steam/steamapps/common/RimWorld",
-        "/Applications/Rimworld.app/Mods",
+        "/Applications/RimWorld.app/Mods",
+        "~/Library/Application Support/Steam/steamapps/common/RimWorld",
+        "C:/GOG Games/RimWorld/Mods",
+        "C:/Program Files (x86)/Steam/steamapps/common/RimWorld",
+        "C:/Program Files/Steam/steamapps/common/RimWorld"
     ]
 
-    DEFAULT_WORKSHOP_PATHS = ["~/.local/share/Steam/steamapps/workshop/content/294100"]
+    DEFAULT_WORKSHOP_PATHS = [
+        "~/.local/share/Steam/steamapps/workshop/content/294100", 
+        "C:/Program Files (x86)/Steam/steamapps/common/workshop/content/294100",
+        "C:/Program Files/Steam/steamapps/common/workshop/content/294100",
+        "~/Library/Application Support/Steam/steamapps/workshop/content/294100" ]
 
     DEFAULT_CONFIG_PATHS = [
         "~/Library/Application Support/Rimworld/",
         "~/.config/unity3d/Ludeon Studios/RimWorld by Ludeon Studios",
+        "~/AppData/LocalLow/Ludeon Studios\RimWorld by Ludeon Studios"
     ]
 
     @staticmethod
@@ -45,11 +55,16 @@ class PathFinder:
 
     @staticmethod
     def _search_root(p: Path, f) -> Optional[Path]:
-        p = p.expanduser()
-        for n in p.glob("**/"):
-            if f(n):
-                return n
-        return None
+        try:
+            if util.platform() == "win32":
+                p = Path(str(p).strip("\""))
+            p = p.expanduser()
+            for n in p.glob('**/'):
+                if f(n):
+                    return n
+            return None
+        except FileNotFoundError:
+            return None
 
     @staticmethod
     def get_workshop_from_game_path(p: Path):
