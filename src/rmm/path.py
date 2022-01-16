@@ -7,26 +7,27 @@ import rmm.util as util
 
 class PathFinder:
     DEFAULT_GAME_PATHS = [
-        "~/GOG Games/RimWorld",
-        "~/.local/share/Steam/steamapps/common/RimWorld",
-        "/Applications/RimWorld.app/Mods",
-        "~/Library/Application Support/Steam/steamapps/common/RimWorld",
-        "C:/GOG Games/RimWorld/Mods",
-        "C:/Program Files (x86)/Steam/steamapps/common/RimWorld",
-        "C:/Program Files/Steam/steamapps/common/RimWorld",
+        ("~/GOG Games/RimWorld", "linux"),
+        ("~/games/rimworld", "linux"),
+        ("~/.local/share/Steam/steamapps/common/RimWorld", "linux"),
+        ("/Applications/RimWorld.app/Mods", "darwin"),
+        ("~/Library/Application Support/Steam/steamapps/common/RimWorld", "darwin"),
+        ("C:/GOG Games/RimWorld/Mods", "win32"),
+        ("C:/Program Files (x86)/Steam/steamapps/common/RimWorld", "win32"),
+        ("C:/Program Files/Steam/steamapps/common/RimWorld", "win32"),
     ]
 
     DEFAULT_WORKSHOP_PATHS = [
-        "~/.local/share/Steam/steamapps/workshop/content/294100",
-        "C:/Program Files (x86)/Steam/steamapps/common/workshop/content/294100",
-        "C:/Program Files/Steam/steamapps/common/workshop/content/294100",
-        "~/Library/Application Support/Steam/steamapps/workshop/content/294100",
+        ("~/.local/share/Steam/steamapps/workshop/content/294100", "linux"),
+        ("~/Library/Application Support/Steam/steamapps/workshop/content/294100", "darwin"),
+        ("C:/Program Files (x86)/Steam/steamapps/common/workshop/content/294100", "win32"),
+        ("C:/Program Files/Steam/steamapps/common/workshop/content/294100", "win32"),
     ]
 
     DEFAULT_CONFIG_PATHS = [
-        "~/Library/Application Support/Rimworld/",
-        "~/.config/unity3d/Ludeon Studios/RimWorld by Ludeon Studios",
-        "~/AppData/LocalLow/Ludeon Studios\RimWorld by Ludeon Studios",
+        ("~/Library/Application Support/Rimworld/", "darwin"),
+        ("~/.config/unity3d/Ludeon Studios/RimWorld by Ludeon Studios", "linux"),
+        ("~/AppData/LocalLow/Ludeon Studios\RimWorld by Ludeon Studios", "win32"),
     ]
 
     @staticmethod
@@ -57,9 +58,7 @@ class PathFinder:
     @staticmethod
     def _search_root(p: Path, f) -> Optional[Path]:
         try:
-            if util.platform() == "win32":
-                p = Path(str(p).strip('"'))
-            p = p.expanduser()
+            p = util.sanitize_path(p)
             for n in p.glob("**/"):
                 if f(n):
                     return n
@@ -69,7 +68,7 @@ class PathFinder:
 
     @staticmethod
     def get_workshop_from_game_path(p: Path):
-        p = p.expanduser()
+        p = util.sanitize_path(p)
         for index, dirname in enumerate(p.parts):
             if dirname == "steamapps":
                 return Path(*list(p.parts[0:index])) / Path(
@@ -78,9 +77,10 @@ class PathFinder:
 
     @staticmethod
     def _search_defaults(defaults: list[str], f) -> Optional[Path]:
-        for p in defaults:
-            if p := f(Path(p)):
-                return p
+        platform = util.platform()
+        for path in [ n[0] for n in defaults if n[1] == platform ]:
+            if path := f(Path(path)):
+                return path
         return None
 
     @classmethod

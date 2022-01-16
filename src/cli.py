@@ -370,7 +370,7 @@ def run():
         config.mod_path = PathFinder.find_game(config.mod_path)
     if not config.mod_path:
         try:
-            config.mod_path = PathFinder.find_game(Path(os.environ["RMM_PATH"]))
+            config.mod_path = PathFinder.find_game(Path(util.sanitize_path(os.environ["RMM_PATH"])))
         except KeyError:
             config.mod_path = PathFinder.find_game_defaults()
 

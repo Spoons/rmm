@@ -13,9 +13,7 @@ def platform() -> Optional[str]:
 
     for n in unixes:
         if sys.platform.startswith(n):
-            return "unix"
-    if sys.platform.startswith("win32"):
-        return "win32"
+            return n
 
     return None
 
@@ -95,3 +93,12 @@ def et_pretty_xml(root: ET.Element) -> str:
             (ET.tostring(cast(ET.Element, root), "utf-8").decode()),
         )
     ).toprettyxml(indent="  ", newl="\n")
+
+def sanitize_path(path: str|Path):
+    if isinstance(path, Path):
+        path = str(path)
+
+    if platform() == "win32":
+        path.replace("\"", "")
+
+    return Path(path).expanduser()
