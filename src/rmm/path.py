@@ -13,19 +13,20 @@ class PathFinder:
         "~/Library/Application Support/Steam/steamapps/common/RimWorld",
         "C:/GOG Games/RimWorld/Mods",
         "C:/Program Files (x86)/Steam/steamapps/common/RimWorld",
-        "C:/Program Files/Steam/steamapps/common/RimWorld"
+        "C:/Program Files/Steam/steamapps/common/RimWorld",
     ]
 
     DEFAULT_WORKSHOP_PATHS = [
-        "~/.local/share/Steam/steamapps/workshop/content/294100", 
+        "~/.local/share/Steam/steamapps/workshop/content/294100",
         "C:/Program Files (x86)/Steam/steamapps/common/workshop/content/294100",
         "C:/Program Files/Steam/steamapps/common/workshop/content/294100",
-        "~/Library/Application Support/Steam/steamapps/workshop/content/294100" ]
+        "~/Library/Application Support/Steam/steamapps/workshop/content/294100",
+    ]
 
     DEFAULT_CONFIG_PATHS = [
         "~/Library/Application Support/Rimworld/",
         "~/.config/unity3d/Ludeon Studios/RimWorld by Ludeon Studios",
-        "~/AppData/LocalLow/Ludeon Studios\RimWorld by Ludeon Studios"
+        "~/AppData/LocalLow/Ludeon Studios\RimWorld by Ludeon Studios",
     ]
 
     @staticmethod
@@ -57,9 +58,9 @@ class PathFinder:
     def _search_root(p: Path, f) -> Optional[Path]:
         try:
             if util.platform() == "win32":
-                p = Path(str(p).strip("\""))
+                p = Path(str(p).strip('"'))
             p = p.expanduser()
-            for n in p.glob('**/'):
+            for n in p.glob("**/"):
                 if f(n):
                     return n
             return None

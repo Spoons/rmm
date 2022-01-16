@@ -84,20 +84,24 @@ def expand_ranges(s: str) -> str:
     ).replace(",", " ")
 
 
-
-def tabulate_mod_or_wr(mods: Optional[list[WorkshopResult]|list[Mod]], numbered=False, reverse=False, alpha=False) -> str:
+def tabulate_mod_or_wr(
+    mods: Optional[list[WorkshopResult] | list[Mod]],
+    numbered=False,
+    reverse=False,
+    alpha=False,
+) -> str:
     if not mods:
         return ""
     mod_list = [[n.name, n.author[:20]] for n in mods if n.name and n.author]
-    headers=["name", "author"]
+    headers = ["name", "author"]
     if numbered:
-        headers=["no", "name", "author"]
+        headers = ["no", "name", "author"]
         new_list = []
         offset = 0
         if not reverse:
             offset = len(mod_list) + 1
-        for k,v in enumerate(mod_list):
-            new_list.append([abs(k+1 - offset), v[0], v[1]])
+        for k, v in enumerate(mod_list):
+            new_list.append([abs(k + 1 - offset), v[0], v[1]])
 
         mod_list = new_list
     if alpha:
@@ -123,7 +127,11 @@ def get_long_name_from_alias_map(word, _list):
 
 
 def parse_options() -> Config:
-    path_options = [("mod_path", "--path", "-p"), ("workshop_path", "--workshop", "-w"), ("config_path", "--user", "-u")]
+    path_options = [
+        ("mod_path", "--path", "-p"),
+        ("workshop_path", "--workshop", "-w"),
+        ("config_path", "--user", "-u"),
+    ]
 
     config = Config()
     del sys.argv[0]
@@ -133,12 +141,12 @@ def parse_options() -> Config:
             print(sys.argv[0])
             path_str = sys.argv[0]
             if util.platform() == "win32":
-                path = Path(str(path_str).strip("\""))
+                path = Path(str(path_str).strip('"'))
             else:
                 path = Path(path_str)
             setattr(config, s, path)
             del sys.argv[0]
-            
+
     except IndexError:
         pass
 
@@ -174,13 +182,16 @@ def search(args: list[str], manager: Manager):
     results = WorkshopWebScraper.search(joined_args, reverse=True)
     print(tabulate_mod_or_wr(results))
 
+
 def capture_range(length: int):
     if length == 0:
         return None
     while True:
         try:
             selection = input()
-            selection = [length - int(s) + 1 for s in expand_ranges(selection).split(" ")]
+            selection = [
+                length - int(s) + 1 for s in expand_ranges(selection).split(" ")
+            ]
             for n in selection:
                 if n > length or n <= 0:
                     raise InvalidSelectionException("Out of bounds")
@@ -192,6 +203,7 @@ def capture_range(length: int):
 
     return selection
 
+
 def sync(args: list[str], manager: Manager):
     joined_args = " ".join(args[1:])
     results = WorkshopWebScraper.search(joined_args, reverse=True)
@@ -200,9 +212,11 @@ def sync(args: list[str], manager: Manager):
     selection = capture_range(len(results))
     if not selection:
         exit(0)
-    queue = list( reversed([results[m - 1] for m in selection]) )
+    queue = list(reversed([results[m - 1] for m in selection]))
     print(
-        "Package(s): \n{} \n\nwill be installed. Continue? [y/n] ".format("  \n".join([f"{m.name} by {m.author}" for m in queue])),
+        "Package(s): \n{} \n\nwill be installed. Continue? [y/n] ".format(
+            "  \n".join([f"{m.name} by {m.author}" for m in queue])
+        ),
         end="",
     )
 
@@ -214,7 +228,7 @@ def remove(args: list[str], manager: Manager):
         raise Exception("Game path not defined")
 
     remove_queue = None
-    if args[1] == '-f':
+    if args[1] == "-f":
         modlist_filename = args[2]
         args = args[2:]
         modlist_path = Path(modlist_filename)
@@ -233,7 +247,7 @@ def remove(args: list[str], manager: Manager):
 
         selection = capture_range(len(search_result))
         if selection:
-            remove_queue = ([search_result[m - 1] for m in selection])
+            remove_queue = [search_result[m - 1] for m in selection]
         else:
             print("No selection made.")
             return
@@ -241,7 +255,7 @@ def remove(args: list[str], manager: Manager):
     print("Would you like to remove? ")
 
     for m in remove_queue:
-        print( m.title())
+        print(m.title())
 
     print("[y/n]: ", end="")
 
@@ -295,7 +309,9 @@ def sort(args: list[str], manager: Manager):
 def update(args: list[str], manager: Manager):
     if not manager.config.mod_path:
         raise Exception("Game path not defined")
-    installed_mods_names = "\n  ".join([n.name for n in manager.installed_mods() if n.name])
+    installed_mods_names = "\n  ".join(
+        [n.name for n in manager.installed_mods() if n.name]
+    )
     print("Preparing to update following packages:")
     print(installed_mods_names)
     print(
@@ -313,10 +329,10 @@ def update(args: list[str], manager: Manager):
 def export(args: list[str], manager: Manager):
     if not manager.config.mod_path:
         raise Exception("Game path not defined")
-    if args[1] == '-e':
+    if args[1] == "-e":
         args = args[1:]
         mods = manager.enabled_mods()
-    elif args[1] == '-d':
+    elif args[1] == "-d":
         args = args[1:]
         mods = manager.disabled_mods()
     else:
@@ -326,6 +342,7 @@ def export(args: list[str], manager: Manager):
     ModListFile.write(Path(joined_args), mods, ModListV2Format())
     print(f"Mod list written to {joined_args}")
 
+
 def _import(args: list[str], manager: Manager):
     joined_args = " ".join(args[1:])
     mod_install_queue = ModListFile.read(Path(joined_args))
@@ -334,18 +351,18 @@ def _import(args: list[str], manager: Manager):
         print("No mods imported")
         exit(1)
 
-    mod_install_queue = [ n for n in mod_install_queue if n.steamid ]
+    mod_install_queue = [n for n in mod_install_queue if n.steamid]
 
     for mod in mod_install_queue:
-       print(mod.title())
+        print(mod.title())
 
     print("\nImport package(s)? [y/n]:")
 
     if input() != "y":
         return False
 
-
     manager.sync_mods(mod_install_queue)
+
 
 def run():
     config = parse_options()
@@ -384,7 +401,9 @@ def run():
 
     if not config.config_path:
         try:
-            config.config_path = PathFinder.find_config(Path(os.environ["RMM_CONFIG_PATH"]))
+            config.config_path = PathFinder.find_config(
+                Path(os.environ["RMM_CONFIG_PATH"])
+            )
         except KeyError:
             config.config_path = PathFinder.find_config_defaults()
 

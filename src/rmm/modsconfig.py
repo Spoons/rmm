@@ -79,7 +79,7 @@ class ModsConfig:
 
         DG = nx.DiGraph()
 
-        before_core = ['brrainz.harmony', 'me.samboycoding.betterloading']
+        before_core = ["brrainz.harmony", "me.samboycoding.betterloading"]
 
         expansion_load_order = [
             "ludeon.rimworld",
@@ -121,17 +121,19 @@ class ModsConfig:
             except KeyError:
                 pass
 
-
         rocketman = False
         if "krkr.rocketman" in populated_mods:
             rocketman = True
 
-        if "murmur.walllight" in populated_mods and "juanlopez2008.lightsout" in populated_mods:
+        if (
+            "murmur.walllight" in populated_mods
+            and "juanlopez2008.lightsout" in populated_mods
+        ):
             DG.add_edge("juanlopez2008.lightsout", "murmur.walllight")
 
         for m in populated_mods:
-            if rocketman and m.packageid != 'krkr.rocketman':
-                DG.add_edge('krkr.rocketman', m.packageid)
+            if rocketman and m.packageid != "krkr.rocketman":
+                DG.add_edge("krkr.rocketman", m.packageid)
             if not m in combined_load_order:
                 for n in combined_load_order:
                     DG.add_edge(m.packageid, n)

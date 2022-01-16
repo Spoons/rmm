@@ -136,28 +136,31 @@ class Mod:
         return f"<Mod: '{self.packageid}'>"
 
 
-
 class ModFolder:
     @staticmethod
     def read(path: Path) -> list[Mod]:
         with Pool(16) as p:
-            mods = list(filter(
-                None,
-                p.map(
-                    Mod.create_from_path,
-                    path.iterdir(),
-                ),
-            ))
+            mods = list(
+                filter(
+                    None,
+                    p.map(
+                        Mod.create_from_path,
+                        path.iterdir(),
+                    ),
+                )
+            )
         return mods
 
     @staticmethod
     def search(path: Path, search_term) -> list[Mod]:
         return [
-                r
-                for r in ModFolder.read(path)
-                if (isinstance(r.name, str) and search_term.lower() in r.name.lower())
-                or (isinstance(r.author, str) and search_term.lower() in r.author.lower())
-                or search_term == r.steamid ]
+            r
+            for r in ModFolder.read(path)
+            if (isinstance(r.name, str) and search_term.lower() in r.name.lower())
+            or (isinstance(r.author, str) and search_term.lower() in r.author.lower())
+            or search_term == r.steamid
+        ]
+
 
 EXPANSION_PACKAGES = [
     Mod(packageid="ludeon.rimworld"),
