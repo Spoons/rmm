@@ -1,6 +1,47 @@
 CHANGES
 =======
 
+* feat: removed core
+* feat: update readme for v1.0 release
+* fix: simplify import print
+* feat: split core into modules
+* feat: created manager class
+* feat: update readme
+* fix: typing errors
+* feat: simplify code, add export options
+* feat: simplify front end code
+* fix: improving autosort accuracy
+* fix: improved vector import
+* fix: set pbfid to None when no pbfid file exists
+* fix: check for str type on vectors
+* feat: adds autosort
+* feat: adds config cli command
+* feat: adds curses multiselect window
+* feat: refactor search
+* fix: bounds error for zero arguments
+* feat: completed import and export cli
+* feat: add update, export, and import cli
+* fix: fix module
+* feat: split into modules
+* feat: adds sync and remove commands
+* feat: add sync cli and simplify steamcmd call
+* fix: ascii encode in publishedfileid
+* fix: cli parser issue
+* feat: replace with new core
+* feat: adds cli
+* feat: further refinement on xml parsing
+* feat: adds basic ModsConfig processing
+* feat: complete PathFinder and remove V2 mod list
+* feat: adds game and workshop finding methods
+* feat: adds platform detection to util
+* fix: improvements to modlist reading and writing
+* feat: adds basic mod test
+* feat: completed workshop detail scraper
+* feat: adds list seralizers and ModList sequence
+* feat: rewrite of Mod and ModList handling code
+* feat: migrate command copies instead of sync
+* feat: update change log. remove pkgbuild
+
 v0.0.8
 ------
 

@@ -7,8 +7,8 @@ from multiprocessing import Pool
 from pathlib import Path
 from typing import Optional, cast
 
-import util
-from exception import InvalidPackageHash
+import rmm.util as util
+from rmm.exception import InvalidPackageHash
 
 
 class Mod:

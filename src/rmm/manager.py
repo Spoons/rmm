@@ -2,11 +2,11 @@
 
 from pathlib import Path
 
-import util
-from config import Config
-from mod import Mod, ModFolder
-from modsconfig import ModsConfig
-from steam import SteamDownloader, WorkshopResult
+import rmm.util as util
+from rmm.config import Config
+from rmm.mod import Mod, ModFolder
+from rmm.modsconfig import ModsConfig
+from rmm.steam import SteamDownloader, WorkshopResult
 
 
 class Manager():

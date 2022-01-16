@@ -9,13 +9,14 @@ from typing import Optional, cast
 
 from tabulate import tabulate
 
-from config import Config
-from exception import InvalidSelectionException
-from manager import Manager
-from mod import EXPANSION_PACKAGES, Mod
-from modlist import ModListFile, ModListV2Format
-from path import PathFinder
-from steam import WorkshopResult, WorkshopWebScraper
+import rmm.util as util
+from rmm.config import Config
+from rmm.exception import InvalidSelectionException
+from rmm.manager import Manager
+from rmm.mod import EXPANSION_PACKAGES, Mod
+from rmm.modlist import ModListFile, ModListV2Format
+from rmm.path import PathFinder
+from rmm.steam import WorkshopResult, WorkshopWebScraper
 
 USAGE = """
 RimWorld Mod Manager
@@ -122,15 +123,22 @@ def get_long_name_from_alias_map(word, _list):
 
 
 def parse_options() -> Config:
-    path_options = [("path", "--path", "-p"), ("workshop_path", "--workshop", "-w"), ("user", "--user", "-u")]
+    path_options = [("mod_path", "--path", "-p"), ("workshop_path", "--workshop", "-w"), ("config_path", "--user", "-u")]
 
     config = Config()
     del sys.argv[0]
     try:
         while s := get_long_name_from_alias_map(sys.argv[0], [p for p in path_options]):
             del sys.argv[0]
-            setattr(config, s, Path(sys.argv[0]))
+            print(sys.argv[0])
+            path_str = sys.argv[0]
+            if util.platform() == "win32":
+                path = Path(str(path_str).strip("\""))
+            else:
+                path = Path(path_str)
+            setattr(config, s, path)
             del sys.argv[0]
+            
     except IndexError:
         pass
 
