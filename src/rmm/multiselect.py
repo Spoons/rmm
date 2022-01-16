@@ -76,7 +76,6 @@ def multiselect_order_menu(stdscr, data):
             data[selection] = (data[selection][0], not data[selection][1])
             selection = move_selection(selection, data, 1)
 
-
         elif k == ord("c"):
             return data
 
@@ -141,7 +140,6 @@ def multiselect_order_menu(stdscr, data):
 
         # Wait for next input
         k = stdscr.getch()
-
 
 
 def main():

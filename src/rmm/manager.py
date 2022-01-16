@@ -9,7 +9,7 @@ from rmm.modsconfig import ModsConfig
 from rmm.steam import SteamDownloader, WorkshopResult
 
 
-class Manager():
+class Manager:
     def __init__(self, config: Config):
         if not isinstance(config, Config):
             raise Exception("Must pass Config object to Manager")
@@ -20,7 +20,7 @@ class Manager():
     def install_mod(self, steam_cache: Path, steamid: int):
         if not steamid:
             raise Exception("Missing SteamID")
-        mod = Mod.create_from_path(steam_cache / str( steamid ))
+        mod = Mod.create_from_path(steam_cache / str(steamid))
 
         dest_path = None
         if self.config.USE_HUMAN_NAMES and mod and mod.packageid:
@@ -44,15 +44,15 @@ class Manager():
             raise Exception("Game path not defined")
 
         installed_mods = ModFolder.read(self.config.mod_path)
-        removal_queue = [ n for n in installed_mods if n == mod ]
+        removal_queue = [n for n in installed_mods if n == mod]
 
         for m in removal_queue:
             print(f"Uninstalling {mod.title()}")
             mod_absolute_path = self.config.mod_path / m.dirname
-            if (mod_absolute_path):
+            if mod_absolute_path:
                 util.remove(mod_absolute_path)
 
-            steamid_path = self.config.mod_path / str( m.steamid )
+            steamid_path = self.config.mod_path / str(m.steamid)
             if m.steamid and steamid_path.exists():
                 util.remove(self.config.mod_path / str(m.steamid))
 
@@ -60,16 +60,16 @@ class Manager():
             if self.config.USE_HUMAN_NAMES and m.packageid and pid_path.exists():
                 util.remove(pid_path)
 
-
     def remove_mods(self, queue: list[Mod]):
         for mod in queue:
             if isinstance(mod, WorkshopResult):
                 mod = Mod.create_from_workshorp_result(mod)
             self.remove_mod(mod)
 
-
-    def sync_mods(self,queue: list[Mod]|list[WorkshopResult]):
-        (_, steam_cache_path) = SteamDownloader.download([ mod.steamid for mod in queue if mod.steamid ])
+    def sync_mods(self, queue: list[Mod] | list[WorkshopResult]):
+        (_, steam_cache_path) = SteamDownloader.download(
+            [mod.steamid for mod in queue if mod.steamid]
+        )
         # game_dir_mods = ModFolder.read(config.game_path)
 
         for mod in queue:
@@ -83,7 +83,9 @@ class Manager():
                 self.remove_mod(mod)
                 success = self.install_mod(steam_cache_path, mod.steamid)
             except FileNotFoundError:
-                print(f"Unable to download and install {mod.title()}\n\tDoes this mod still exist?")
+                print(
+                    f"Unable to download and install {mod.title()}\n\tDoes this mod still exist?"
+                )
             if success:
                 print(f"Installed {mod.title()}")
 

@@ -18,7 +18,7 @@ class SteamDownloader:
     def download(mods: list[int]) -> tuple[list[Mod], Path]:
         home_path = None
         mod_path = None
-        try: 
+        try:
             for d in Path("/tmp").iterdir():
                 if d.name[0:4] == "rmm-" and d.is_dir() and (d / ".rmm").is_file():
                     home_path = d
@@ -35,16 +35,14 @@ class SteamDownloader:
             with open((home_path / ".rmm"), "w"):
                 pass
 
-
         if not home_path:
             raise Exception("Error could not get temporary directory")
-
 
         if util.platform() == "win32":
             os.chdir(home_path)
             mod_path = home_path / "steamapps/workshop/content/294100/"
             workshop_item_arg = " +workshop_download_item 294100 "
-            query = 'steamcmd +login anonymous {} +quit'.format(
+            query = "steamcmd +login anonymous {} +quit".format(
                 workshop_item_arg + workshop_item_arg.join(str(m) for m in mods),
             )
             for n in util.execute(query):
@@ -142,9 +140,7 @@ class WorkshopWebScraper:
         except IndexError:
             updated = None
         try:
-            description = results.find(
-                "div", class_="workshopItemDescription"
-            )
+            description = results.find("div", class_="workshopItemDescription")
             if description:
                 description = description.get_text()
         except AttributeError:
