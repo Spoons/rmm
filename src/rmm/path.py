@@ -1,22 +1,7 @@
-#!/bin/python3
-from __future__ import annotations
+#!/usr/bin/env python3
 
-import re
-import tempfile
-import urllib.request
 from pathlib import Path
-from typing import Optional, cast
-
-from bs4 import BeautifulSoup
-
-import util
-from mod import Mod, ModFolder
-
-EXPANSION_PACKAGES = [
-    Mod(packageid="ludeon.rimworld"),
-    Mod(packageid="ludeon.rimworld.ideology"),
-    Mod(packageid="ludeon.rimworld.royalty"),
-]
+from typing import Optional
 
 
 class PathFinder:
@@ -105,5 +90,3 @@ class PathFinder:
     @classmethod
     def find_config_defaults(cls) -> Optional[Path]:
         return cls._search_defaults(cls.DEFAULT_CONFIG_PATHS, cls.find_config)
-
-

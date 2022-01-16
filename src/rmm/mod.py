@@ -158,3 +158,9 @@ class ModFolder:
                 if (isinstance(r.name, str) and search_term.lower() in r.name.lower())
                 or (isinstance(r.author, str) and search_term.lower() in r.author.lower())
                 or search_term == r.steamid ]
+
+EXPANSION_PACKAGES = [
+    Mod(packageid="ludeon.rimworld"),
+    Mod(packageid="ludeon.rimworld.ideology"),
+    Mod(packageid="ludeon.rimworld.royalty"),
+]

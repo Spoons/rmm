@@ -4,18 +4,18 @@ import importlib.metadata
 import os
 import re
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, cast
 
 from tabulate import tabulate
 
-import util
-from core import (EXPANSION_PACKAGES, Mod, ModFolder, ModsConfig, PathFinder,
-                  SteamDownloader, WorkshopResult, WorkshopWebScraper, Manager)
 from config import Config
 from exception import InvalidSelectionException
+from manager import Manager
+from mod import EXPANSION_PACKAGES, Mod
 from modlist import ModListFile, ModListV2Format
+from path import PathFinder
+from steam import WorkshopResult, WorkshopWebScraper
 
 USAGE = """
 RimWorld Mod Manager
@@ -262,6 +262,7 @@ def config(args: list[str], manager: Manager):
             mod_state.append((n.packageid, False))
 
     import curses
+
     import multiselect
 
     mod_state = curses.wrapper(multiselect.multiselect_order_menu, mod_state)
@@ -306,8 +307,10 @@ def export(args: list[str], manager: Manager):
     if not manager.config.mod_path:
         raise Exception("Game path not defined")
     if args[1] == '-e':
+        args = args[1:]
         mods = manager.enabled_mods()
     elif args[1] == '-d':
+        args = args[1:]
         mods = manager.disabled_mods()
     else:
         mods = manager.installed_mods()
