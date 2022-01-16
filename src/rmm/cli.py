@@ -262,7 +262,6 @@ def config(args: list[str], manager: Manager):
             mod_state.append((n.packageid, False))
 
     import curses
-
     import multiselect
 
     mod_state = curses.wrapper(multiselect.multiselect_order_menu, mod_state)
@@ -329,19 +328,8 @@ def _import(args: list[str], manager: Manager):
 
     mod_install_queue = [ n for n in mod_install_queue if n.steamid ]
 
-    unknown = 0
     for mod in mod_install_queue:
-        display = ""
-        if mod.name:
-            display += mod.name
-            if mod.author:
-                display += f" by { mod.author }"
-        elif mod.packageid:
-            display = mod.packageid
-        else:
-            unknown += 1
-        if display:
-            print(display)
+       print(mod.title())
 
     print("\nImport package(s)? [y/n]:")
 
