@@ -3,6 +3,7 @@
 import os
 import re
 import tempfile
+import zipfile
 import urllib.request
 from pathlib import Path
 from typing import cast
@@ -12,8 +13,19 @@ from bs4 import BeautifulSoup
 import rmm.util as util
 from rmm.mod import Mod, ModFolder
 
+STEAMCMD_WINDOWS_URL='https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip'
 
 class SteamDownloader:
+    @staticmethod
+    def download_steamcmd_windows(path):
+        download_path = path / "steamcmd.zip"
+        urllib.request.urlretrieve(STEAMCMD_WINDOWS_URL, download_path)
+
+        with zipfile.ZipFile(download_path, "r") as zr:
+            zr.extractall(path)
+
+
+
     @staticmethod
     def download(mods: list[int]) -> tuple[list[Mod], Path]:
         home_path = None
@@ -40,6 +52,8 @@ class SteamDownloader:
 
         if util.platform() == "win32":
             os.chdir(home_path)
+            if not (home_path / "steamcmd.exe").exists():
+                SteamDownloader.download_steamcmd_windows(home_path)
             mod_path = home_path / "steamapps/workshop/content/294100/"
             workshop_item_arg = " +workshop_download_item 294100 "
             query = "steamcmd +login anonymous {} +quit".format(
