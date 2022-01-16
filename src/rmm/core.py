@@ -486,8 +486,9 @@ class CLI:
                         return os.path.join(root)
             return None
 
+
         if arguments["--path"]:
-            self.path = arguments["--path"]
+            self.path = arguments["--path"][0]
             self.path = find_game(self.path)
 
         if not self.path:
@@ -534,7 +535,7 @@ class CLI:
             return None
 
         if arguments["--workshop"]:
-            self.workshop_path = arguments["--workshop"]
+            self.workshop_path = arguments["--workshop"][0]
         else:
             try:
                 self.workshop_path = os.path.expanduser(os.environ["RMM_WORKSHOP_PATH"])
