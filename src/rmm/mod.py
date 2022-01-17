@@ -6,11 +6,13 @@ import xml.etree.ElementTree as ET
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Optional, cast
+from dataclasses import dataclass
 
 import rmm.util as util
 from rmm.exception import InvalidPackageHash
 
 
+@dataclass
 class Mod:
     def __init__(
         self,
@@ -26,6 +28,7 @@ class Mod:
         ignored: bool = False,
         repo_url: Optional[str] = None,
         workshop_managed: Optional[bool] = None,
+        enabled: Optional[bool] = None
     ):
         if packageid and isinstance(packageid, str):
             self.packageid = packageid.lower()
@@ -42,6 +45,7 @@ class Mod:
         self.versions = versions
         self.repo_url = repo_url
         self.workshop_managed = workshop_managed
+        self.enabled = enabled
 
     def title(self):
         return self.packageid if self.packageid else f"{self.name} by {self.author}"
@@ -163,7 +167,7 @@ class ModFolder:
 
 
 EXPANSION_PACKAGES = [
-    Mod(packageid="ludeon.rimworld"),
-    Mod(packageid="ludeon.rimworld.ideology"),
-    Mod(packageid="ludeon.rimworld.royalty"),
+    Mod(packageid="ludeon.rimworld", author="Ludeon", name="RimWorld"),
+    Mod(packageid="ludeon.rimworld.ideology", author="Ludeon", name="Ideology"),
+    Mod(packageid="ludeon.rimworld.royalty", author="Ludeon", name="Royalty")
 ]
