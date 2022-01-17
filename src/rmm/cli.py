@@ -84,21 +84,25 @@ You can use enable, disable, and remove with no
 argument to select from all mods.
 """
 
+
 def _interactive_query(manager: Manager, term: str, verb: str):
-        search_result = manager.search_installed(term)
-        if not search_result:
-            print(f"No packages matching {search_term}")
-            return False
+    search_result = manager.search_installed(term)
+    if not search_result:
+        print(f"No packages matching {search_term}")
+        return False
 
-        print(_tabulate_mod_or_wr(search_result, reverse=True, numbered=True))
-        print(f"Packages to {verb} (eg: 1,3,5-9)")
+    print(_tabulate_mod_or_wr(search_result, reverse=True, numbered=True))
+    print(f"Packages to {verb} (eg: 1,3,5-9)")
 
-        selection = capture_range(len(search_result))
-        if selection:
-            return [search_result[m - 1] for m in selection]
-        else:
-            print("No selection made.")
-            return None
+    selection = capture_range(len(search_result))
+    for n in selection:
+        print(n)
+    if selection:
+        return [search_result[m - 1] for m in selection]
+    else:
+        print("No selection made.")
+        return None
+
 
 def _interactive_verify(mods: list[Mod], verb: str):
 
@@ -112,11 +116,12 @@ def _interactive_verify(mods: list[Mod], verb: str):
         return False
     return True
 
+
 def _cli_parse_modlist(args):
-        modlist_filename = args[2]
-        modlist_path = Path(modlist_filename)
-        queue = ModListFile.read(modlist_path)
-        return(queue)
+    modlist_filename = args[2]
+    modlist_path = Path(modlist_filename)
+    queue = ModListFile.read(modlist_path)
+    return queue
 
 
 def _interactive_selection(args: list[str], manager: Manager, verb: str, f):
@@ -143,6 +148,7 @@ def _interactive_selection(args: list[str], manager: Manager, verb: str, f):
     _interactive_verify(queue, verb)
     f(queue)
 
+
 def _expand_ranges(s: str) -> str:
     return re.sub(
         r"(\d+)-(\d+)",
@@ -158,11 +164,13 @@ def _tabulate_mod_or_wr(
     numbered=False,
     reverse=False,
     alpha=False,
-    reversed_numbering = True,
-    light = False
+    reversed_numbering=True,
+    light=False,
 ) -> str:
     if not mods:
         return ""
+    if isinstance(mods, dict):
+        mods = [n for _, n in mods.items()]
 
     if isinstance(mods[0], Mod):
         headers = ["package", "name", "author", "enabled"]
@@ -172,7 +180,6 @@ def _tabulate_mod_or_wr(
         mod_list = [[n.name, n.author[:20]] for n in mods]
     else:
         return None
-
 
     if numbered:
         headers = ["no"] + headers
@@ -185,7 +192,7 @@ def _tabulate_mod_or_wr(
                 new_list.append([abs(k + 1 - offset), *v])
         else:
             for k, v in enumerate(mod_list):
-                new_list.append([k+1, *v])
+                new_list.append([k + 1, *v])
 
         mod_list = new_list
     if alpha:
@@ -210,8 +217,6 @@ def _get_long_name_from_alias_map(word, _list):
     return None
 
 
-
-
 def help(args: list[str], manager: Manager):
     print(USAGE)
 
@@ -233,7 +238,7 @@ def query(args: list[str], manager: Manager):
     if not manager.config.mod_path:
         raise Exception("Game path not defined")
     search_term = " ".join(args[1:])
-    print(_tabulate_mod_or_wr(manager.search_installed(search_term)))
+    print(_tabulate_mod_or_wr(manager.search_installed(search_term), alpha=True))
 
 
 def search(args: list[str], manager: Manager):
@@ -249,7 +254,7 @@ def capture_range(length: int):
         try:
             selection = input()
             selection = [
-                length - int(s) + 1 for s in _expand_ranges(selection).split(" ")
+                int(s) for s in _expand_ranges(selection).split(" ")
             ]
             for n in selection:
                 if n > length or n <= 0:
@@ -265,8 +270,8 @@ def capture_range(length: int):
 
 def sync(args: list[str], manager: Manager):
     joined_args = " ".join(args[1:])
-    results = WorkshopWebScraper.search(joined_args, reverse=True)
-    print(_tabulate_mod_or_wr(results, numbered=True))
+    results = WorkshopWebScraper.search(joined_args)
+    print(_tabulate_mod_or_wr(results, numbered=True, reverse=True, reversed_numbering=True))
     print("Packages to install (eg: 2 or 1-3)")
     selection = capture_range(len(results))
     if not selection:
@@ -283,17 +288,19 @@ def sync(args: list[str], manager: Manager):
     manager.sync_mods(queue)
 
 
-
 def remove(args: list[str], manager: Manager):
     _interactive_selection(args, manager, "remove", manager.remove_mods)
+
 
 def enable(args: list[str], manager: Manager):
     _interactive_selection(args, manager, "enable", manager.enable_mods)
     print("\nRecommend to use auto sort")
 
+
 def disable(args: list[str], manager: Manager):
     _interactive_selection(args, manager, "disable", manager.disable_mods)
     print("\nRecommend to use auto sort")
+
 
 def config(args: list[str], manager: Manager):
     if not manager.config.mod_path:
@@ -382,11 +389,21 @@ def _import(args: list[str], manager: Manager):
 
     manager.sync_mods(mod_install_queue)
 
+
 def order(args: list[str], manager: Manager):
-    print( _tabulate_mod_or_wr(manager.order_mods(), numbered=True, reverse=False, reversed_numbering=False, ))
+    print(
+        _tabulate_mod_or_wr(
+            manager.order_mods(),
+            numbered=True,
+            reverse=False,
+            reversed_numbering=False,
+        )
+    )
+
 
 def verify(args: list[str], manager: Manager):
     print(manager.verify_mods())
+
 
 def windows_setup():
     try:
@@ -403,6 +420,7 @@ def windows_setup():
     except AttributeError:
         pass
 
+
 def parse_options() -> Config:
     path_options = [
         ("mod_path", "--path", "-p"),
@@ -413,7 +431,9 @@ def parse_options() -> Config:
     config = Config()
     del sys.argv[0]
     try:
-        while s := _get_long_name_from_alias_map(sys.argv[0], [p for p in path_options]):
+        while s := _get_long_name_from_alias_map(
+            sys.argv[0], [p for p in path_options]
+        ):
             del sys.argv[0]
             print(sys.argv[0])
             path_str = sys.argv[0]
@@ -428,6 +448,7 @@ def parse_options() -> Config:
         pass
 
     return config
+
 
 def run():
     config = parse_options()
