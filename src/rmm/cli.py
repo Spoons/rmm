@@ -47,7 +47,7 @@ list              List installed mods.
 query             Search installed mods.
 remove            Remove installed mod.
 search            Search Workshop.
-sort              Auto-sort your modslist
+sort              Auto-sort your modlist
 sync              Install or update a mod.
 update            Update all mods from Steam.
 verify            Checks that enabled mods are compatible
@@ -84,179 +84,13 @@ You can use enable, disable, and remove with no
 argument to select from all mods.
 """
 
-
-def expand_ranges(s: str) -> str:
-    return re.sub(
-        r"(\d+)-(\d+)",
-        lambda match: " ".join(
-            str(i) for i in range(int(match.group(1)), int(match.group(2)) + 1)
-        ),
-        s,
-    ).replace(",", " ")
-
-
-def tabulate_mod_or_wr(
-    mods: Optional[list[WorkshopResult] | list[Mod]],
-    numbered=False,
-    reverse=False,
-    alpha=False,
-    reversed_numbering = True,
-    light = False
-) -> str:
-    if not mods:
-        return ""
-
-    if isinstance(mods[0], Mod):
-        headers = ["package", "name", "author", "enabled"]
-        mod_list = [[n.packageid, n.name, n.author[:20], n.enabled] for n in mods]
-    elif isinstance(mods[0], WorkshopResult) or light:
-        headers = ["name", "author"]
-        mod_list = [[n.name, n.author[:20]] for n in mods]
-    else:
-        return None
-
-
-    if numbered:
-        headers = ["no"] + headers
-        new_list = []
-        offset = 0
-        if not reverse:
-            offset = len(mod_list) + 1
-        if reversed_numbering:
-            for k, v in enumerate(mod_list):
-                new_list.append([abs(k + 1 - offset), *v])
-        else:
-            for k, v in enumerate(mod_list):
-                new_list.append([k+1, *v])
-
-        mod_list = new_list
-    if alpha:
-        mod_list = sorted(mod_list)
-    if reverse:
-        mod_list = reversed(mod_list)
-
-    return tabulate(
-        mod_list,
-        headers=headers,
-    )
-
-
-def get_long_name_from_alias_map(word, _list):
-    for item in _list:
-        if isinstance(item, tuple):
-            if word in list(item):
-                return item[0]
-        if isinstance(item, str):
-            if word == item:
-                return word
-    return None
-
-
-def parse_options() -> Config:
-    path_options = [
-        ("mod_path", "--path", "-p"),
-        ("workshop_path", "--workshop", "-w"),
-        ("config_path", "--user", "-u"),
-    ]
-
-    config = Config()
-    del sys.argv[0]
-    try:
-        while s := get_long_name_from_alias_map(sys.argv[0], [p for p in path_options]):
-            del sys.argv[0]
-            print(sys.argv[0])
-            path_str = sys.argv[0]
-            if util.platform() == "win32":
-                path = Path(str(path_str).strip('"'))
-            else:
-                path = Path(path_str)
-            setattr(config, s, path)
-            del sys.argv[0]
-
-    except IndexError:
-        pass
-
-    return config
-
-
-def help(args: list[str], manager: Manager):
-    print(USAGE)
-
-
-def version(args: list[str], manager: Manager):
-    try:
-        print(importlib.metadata.version("rmm-spoons"))
-    except importlib.metadata.PackageNotFoundError:
-        print("version unknown")
-
-
-def _list(args: list[str], manager: Manager):
-    if not manager.config.mod_path:
-        raise Exception("Game path not defined")
-    print(tabulate_mod_or_wr(manager.installed_mods(), alpha=True))
-
-
-def query(args: list[str], manager: Manager):
-    if not manager.config.mod_path:
-        raise Exception("Game path not defined")
-    search_term = " ".join(args[1:])
-    print(tabulate_mod_or_wr(manager.search_installed(search_term)))
-
-
-def search(args: list[str], manager: Manager):
-    joined_args = " ".join(args[1:])
-    results = WorkshopWebScraper.search(joined_args, reverse=True)
-    print(tabulate_mod_or_wr(results))
-
-
-def capture_range(length: int):
-    if length == 0:
-        return None
-    while True:
-        try:
-            selection = input()
-            selection = [
-                length - int(s) + 1 for s in expand_ranges(selection).split(" ")
-            ]
-            for n in selection:
-                if n > length or n <= 0:
-                    raise InvalidSelectionException("Out of bounds")
-            break
-        except ValueError:
-            print("Must enter valid integer or range")
-        except InvalidSelectionException:
-            print("Selection out of bounds.")
-
-    return selection
-
-
-def sync(args: list[str], manager: Manager):
-    joined_args = " ".join(args[1:])
-    results = WorkshopWebScraper.search(joined_args, reverse=True)
-    print(tabulate_mod_or_wr(results, numbered=True))
-    print("Packages to install (eg: 2 or 1-3)")
-    selection = capture_range(len(results))
-    if not selection:
-        exit(0)
-    queue = list(reversed([results[m - 1] for m in selection]))
-    print(
-        "Package(s): \n{} \n\nwill be installed.".format(
-            "  \n".join([f"{m.name} by {m.author}" for m in queue])
-        ),
-        end="",
-    )
-    print()
-
-    manager.sync_mods(queue)
-
-
 def _interactive_query(manager: Manager, term: str, verb: str):
         search_result = manager.search_installed(term)
         if not search_result:
             print(f"No packages matching {search_term}")
             return False
 
-        print(tabulate_mod_or_wr(search_result, reverse=True, numbered=True))
+        print(_tabulate_mod_or_wr(search_result, reverse=True, numbered=True))
         print(f"Packages to {verb} (eg: 1,3,5-9)")
 
         selection = capture_range(len(search_result))
@@ -308,6 +142,147 @@ def _interactive_selection(args: list[str], manager: Manager, verb: str, f):
         exit(0)
     _interactive_verify(queue, verb)
     f(queue)
+
+def _expand_ranges(s: str) -> str:
+    return re.sub(
+        r"(\d+)-(\d+)",
+        lambda match: " ".join(
+            str(i) for i in range(int(match.group(1)), int(match.group(2)) + 1)
+        ),
+        s,
+    ).replace(",", " ")
+
+
+def _tabulate_mod_or_wr(
+    mods: Optional[list[WorkshopResult] | list[Mod]],
+    numbered=False,
+    reverse=False,
+    alpha=False,
+    reversed_numbering = True,
+    light = False
+) -> str:
+    if not mods:
+        return ""
+
+    if isinstance(mods[0], Mod):
+        headers = ["package", "name", "author", "enabled"]
+        mod_list = [[n.packageid, n.name, n.author[:20], n.enabled] for n in mods]
+    elif isinstance(mods[0], WorkshopResult) or light:
+        headers = ["name", "author"]
+        mod_list = [[n.name, n.author[:20]] for n in mods]
+    else:
+        return None
+
+
+    if numbered:
+        headers = ["no"] + headers
+        new_list = []
+        offset = 0
+        if not reverse:
+            offset = len(mod_list) + 1
+        if reversed_numbering:
+            for k, v in enumerate(mod_list):
+                new_list.append([abs(k + 1 - offset), *v])
+        else:
+            for k, v in enumerate(mod_list):
+                new_list.append([k+1, *v])
+
+        mod_list = new_list
+    if alpha:
+        mod_list = sorted(mod_list)
+    if reverse:
+        mod_list = reversed(mod_list)
+
+    return tabulate(
+        mod_list,
+        headers=headers,
+    )
+
+
+def _get_long_name_from_alias_map(word, _list):
+    for item in _list:
+        if isinstance(item, tuple):
+            if word in list(item):
+                return item[0]
+        if isinstance(item, str):
+            if word == item:
+                return word
+    return None
+
+
+
+
+def help(args: list[str], manager: Manager):
+    print(USAGE)
+
+
+def version(args: list[str], manager: Manager):
+    try:
+        print(importlib.metadata.version("rmm-spoons"))
+    except importlib.metadata.PackageNotFoundError:
+        print("version unknown")
+
+
+def _list(args: list[str], manager: Manager):
+    if not manager.config.mod_path:
+        raise Exception("Game path not defined")
+    print(_tabulate_mod_or_wr(manager.installed_mods(), alpha=True))
+
+
+def query(args: list[str], manager: Manager):
+    if not manager.config.mod_path:
+        raise Exception("Game path not defined")
+    search_term = " ".join(args[1:])
+    print(_tabulate_mod_or_wr(manager.search_installed(search_term)))
+
+
+def search(args: list[str], manager: Manager):
+    joined_args = " ".join(args[1:])
+    results = WorkshopWebScraper.search(joined_args, reverse=True)
+    print(_tabulate_mod_or_wr(results))
+
+
+def capture_range(length: int):
+    if length == 0:
+        return None
+    while True:
+        try:
+            selection = input()
+            selection = [
+                length - int(s) + 1 for s in _expand_ranges(selection).split(" ")
+            ]
+            for n in selection:
+                if n > length or n <= 0:
+                    raise InvalidSelectionException("Out of bounds")
+            break
+        except ValueError:
+            print("Must enter valid integer or range")
+        except InvalidSelectionException:
+            print("Selection out of bounds.")
+
+    return selection
+
+
+def sync(args: list[str], manager: Manager):
+    joined_args = " ".join(args[1:])
+    results = WorkshopWebScraper.search(joined_args, reverse=True)
+    print(_tabulate_mod_or_wr(results, numbered=True))
+    print("Packages to install (eg: 2 or 1-3)")
+    selection = capture_range(len(results))
+    if not selection:
+        exit(0)
+    queue = list(reversed([results[m - 1] for m in selection]))
+    print(
+        "Package(s): \n{} \n\nwill be installed.".format(
+            "  \n".join([f"{m.name} by {m.author}" for m in queue])
+        ),
+        end="",
+    )
+    print()
+
+    manager.sync_mods(queue)
+
+
 
 def remove(args: list[str], manager: Manager):
     _interactive_selection(args, manager, "remove", manager.remove_mods)
@@ -408,38 +383,12 @@ def _import(args: list[str], manager: Manager):
     manager.sync_mods(mod_install_queue)
 
 def order(args: list[str], manager: Manager):
-    print( tabulate_mod_or_wr(manager.order_mods(), numbered=True, reverse=False, reversed_numbering=False, ))
+    print( _tabulate_mod_or_wr(manager.order_mods(), numbered=True, reverse=False, reversed_numbering=False, ))
 
 def verify(args: list[str], manager: Manager):
     print(manager.verify_mods())
 
 def windows_setup():
-    # bat_launcher = """
-    #  @ECHO OFF
-    # SET ThisScriptsDirectory=%~dp0
-    # SET PowerShellScriptPath=%ThisScriptsDirectory%path.ps1
-    # PowerShell -NoProfile -ExecutionPolicy Bypass -Command "& {Start-Process PowerShell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File ""%PowerShellScriptPath%""' -Verb RunAs}"
-    #     """
-    #     powershell = """
-    # $desired_entry = '{}'
-
-    # $old_path = [Environment]::GetEnvironmentVariable('path', 'machine');
-
-    # $old_path_entry_list = ($old_path).split(";")
-    # $new_path_entry_list = new-object system.collections.arraylist
-
-    # foreach($old_path_entry in $old_path_entry_list) {
-    #     if($old_path_entry -eq $desired_entry){
-    #         # ignore old entry
-    #     }else{
-    #         [void]$new_path_entry_list.Add($old_path_entry)
-    #     }
-    # }
-    # [void]$new_path_entry_list.Add($desired_entry)
-    # $new_path = $new_path_entry_list -Join ";"
-
-    # [Environment]::SetEnvironmentVariable('path', $new_path,'Machine');
-    #     """
     try:
         if not util.platform() == "win32":
             pass
@@ -451,15 +400,34 @@ def windows_setup():
                 print(
                     f'You should add "{string}" to your PATH variable so you can directly access the rmm command.'
                 )
-                # print(string)
-                # with Path("set-path.bat").open('w') as f:
-                #     f.write(bat_launcher)
-                # with Path("path.ps1").open('w') as f:
-                #     f.write(powershell.replace("{}", string))
-                # util.run_sh("set-path.bat")
     except AttributeError:
         pass
 
+def parse_options() -> Config:
+    path_options = [
+        ("mod_path", "--path", "-p"),
+        ("workshop_path", "--workshop", "-w"),
+        ("config_path", "--user", "-u"),
+    ]
+
+    config = Config()
+    del sys.argv[0]
+    try:
+        while s := _get_long_name_from_alias_map(sys.argv[0], [p for p in path_options]):
+            del sys.argv[0]
+            print(sys.argv[0])
+            path_str = sys.argv[0]
+            if util.platform() == "win32":
+                path = Path(str(path_str).strip('"'))
+            else:
+                path = Path(path_str)
+            setattr(config, s, path)
+            del sys.argv[0]
+
+    except IndexError:
+        pass
+
+    return config
 
 def run():
     config = parse_options()
@@ -534,7 +502,7 @@ def run():
     ]
 
     if sys.argv:
-        command = get_long_name_from_alias_map(sys.argv[0], actions)
+        command = _get_long_name_from_alias_map(sys.argv[0], actions)
         if command and command in globals():
             globals()[command](sys.argv, manager)
             windows_setup()
