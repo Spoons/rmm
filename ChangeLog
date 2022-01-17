@@ -1,6 +1,10 @@
 CHANGES
 =======
 
+* feat: add steamcmd auto download on windows
+* fix: sanitize paths
+* fix: formatting
+* fix: compat for windows
 * feat: removed core
 * feat: update readme for v1.0 release
 * fix: simplify import print
