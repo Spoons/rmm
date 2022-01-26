@@ -1,8 +1,25 @@
 CHANGES
 =======
 
+v1.0.1
+------
+
+* fix: win paths
+
+v1.0.0
+------
+
+* feat: add steamcmd auto download on windows
+* fix: sanitize paths
+* fix: formatting
+* fix: compat for windows
 * feat: removed core
 * feat: update readme for v1.0 release
+
+v0.1.1
+------
+
+* fix: error with -p and -w arguments
 * fix: simplify import print
 * feat: split core into modules
 * feat: created manager class
@@ -27,8 +44,20 @@ CHANGES
 * feat: add sync cli and simplify steamcmd call
 * fix: ascii encode in publishedfileid
 * fix: cli parser issue
+* feat: update readme with release info
 * feat: replace with new core
 * feat: adds cli
+
+v0.1.0
+------
+
+* fix: ignore non ascii characters in pubid file
+* feat: update changelog
+
+v0.0.9
+------
+
+* fix: added importlib.metadata dep
 * feat: further refinement on xml parsing
 * feat: adds basic ModsConfig processing
 * feat: complete PathFinder and remove V2 mod list
