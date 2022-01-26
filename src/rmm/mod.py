@@ -26,6 +26,7 @@ class Mod:
         ignored: bool = False,
         repo_url: Optional[str] = None,
         workshop_managed: Optional[bool] = None,
+        enabled: Optional[bool] = None,
     ):
         if packageid and isinstance(packageid, str):
             self.packageid = packageid.lower()
@@ -42,6 +43,7 @@ class Mod:
         self.versions = versions
         self.repo_url = repo_url
         self.workshop_managed = workshop_managed
+        self.enabled = enabled
 
     def title(self):
         return self.packageid if self.packageid else f"{self.name} by {self.author}"
