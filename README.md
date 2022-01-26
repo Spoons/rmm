@@ -1,5 +1,4 @@
 # RMM: RimWorld Mod Manager
-# 1.0 Release
 
 Do you dislike DRM based platforms but love RimWorld and it's mods? RMM is cross platform mod manager that allows you to download, update, auto-sort, and configure mods for the game without relying on the Steam consumer client. RMM has a keyboard based interface that is easy to use and will be familiar to Linux users and developers. 
 
