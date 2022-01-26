@@ -4,17 +4,30 @@ Do you dislike DRM based platforms but love RimWorld and it's mods? RMM is cross
 
 RMM v1.0 supports Windows, Linux, and MacOS. 
 
-## Prerequisites
+## Prerequisites 
 
 To use RMM you need:
-- SteamCMD installed and in your path.
-- Set RMM_PATH to game path if game is installed in non default location.
+- SteamCMD installed and in your path. (Linux/Mac Only)
+- Set RMM_PATH to game path if game is installed to a not default location.
+
+# Installation for Windows
+1. Install latest Python 3 release from `https://www.python.org/downloads/windows/`
+   Ensure 'add to PATH' is checked / enabled during installation.
+2. Open 'cmd' with Administrator privileges and type `python -m pip install --user rmm-spoons`
+   Use with `python -m rmm`
+4. (Optional) Add `C:\Users\[username]\AppData\Roaming\Python\[version]\Scripts\` to PATH.
+   Use with `rmm`
+   
+# Installation for MacOS:
+1. Install Python3
+2. `python -m pip install --user rmm-spoons`
+3. Use with `python -m rmm`
 
 # Installation for Arch Linux
 
 RMM has an AUR package 'rmm'. The package brings in all dependencies, including steamcmd, and can be installed with makepkg and git or an AUR helper as shown below. No other steps are required:
 
-a. Makepkg:
+## Makepkg
 ``` sh
 mkdir -p ~/build ; cd ~/build
 git clone https://aur.archlinux.org/rmm.git
@@ -22,49 +35,37 @@ cd rmm
 makepkg -si
 ```
 
-b. yay (AUR Helper)
+## Yay (AUR helper)
 ``` sh
 yay -S rmm
 ```
 
 
-# Installation via PIP (PyPi)
+# Installation for other Linux distributions (via PyPi)
 
-## 1. Install SteamCMD
-
-For Arch Linux, you can install steamcmd using makepkg as stated below:
+## 1. Installing SteamCMD on Ubuntu
 ``` sh
-mkdir -p ~/build ; cd ~/build
-git clone https://aur.archlinux.org/steamcmd.git
-cd steamcmd
-makepkg -si
+sudo su -c 'apt update && apt upgrade && apt install software-properties-common && add-apt-repository multiverse && dpkg --add-architecture i386 && apt update && apt install lib32gcc1 steamcmd' ; 
+echo 'export PATH="$PATH:/usr/games' >> ~/.bashrc ;
+exec $SHELL
 ```
 
-Alternatively, you can install it using a 'AUR Helper' such as yay.
+## 1. Installing SteamCMD on Debian
 ``` sh
-yay -S steamcmd
+sudo su -c 'apt update && apt upgrade && apt install software-properties-common && add-apt-repository non-free && dpkg --add-architecture i386 && apt update && apt install steamcmd' ; 
+echo 'export PATH="$PATH:/usr/games' >> ~/.bashrc ;
+exec $SHELL
 ```
 
-Verify steamcmd is correctly installed with the below command:
-``` sh
-whereis steamcmd
-```
-
-`whereis` should return a path such as below. Otherwise, ensure steamcmd is in your PATH.
-``` sh
-steamcmd: /usr/bin/steamcmd /usr/share/steamcmd
-```
 
 ## 2. Adding .local/bin to your PATH
-
 RMM can be directly accessed with command `rmm`. In order for this to work, you need to add `~/.local/bin` to your PATH variable, otherwise, your terminal will not find the `rmm` script. If you notice that you cannot run `rmm` after installation, try the following:
 
 ``` sh
-echo 'export PATH="$PATH:$HOME/.local/bin" >> ~/.bashrc
+echo 'export PATH="$PATH:$HOME/.local/bin" >> ~/.bashrc ; exec $SHELL
 ```
 
 Alternatively, RMM can always called with:
-
 ``` sh
 python -m rmm
 ```
@@ -77,13 +78,13 @@ python3 -m pip install --user rmm-spoons
 
 # Configuration
 ## Set RMM_PATH (Optional)
-
 If RimWorld is installed a directory other than the default ones, you should set the RMM_PATH variable to your game directory for convenience.
 
 Set it permanently in your `bashrc` or `zshrc` files:
 ``` sh
 # Note please update this path to your actual game or mod directory
-echo 'export RMM_PATH="$HOME/your/game/path" >> ~/.bashrc
+echo 'export RMM_PATH="$HOME/your/game/path" >> ~/.bashrc ; 
+exec $SHELL
 ```
 
 Temporarily set it during your shell session:
@@ -91,18 +92,8 @@ Temporarily set it during your shell session:
 export RMM_PATH="~/PATHTOGAME/game/Mods"
 ```
 
-## Set RMM_WORKSHOP_PATH (Optional)
-
-You probably do not need to set this variable.
-
-RMM supports managing mods in your Steam Workshop mods directory. If RimWorld is installed into the same library as your Workshop mods, as would be the case for most people, RMM will find your workshop directory. Otherwise, you can set this value as per the example below:
-
-``` sh
-echo 'export RMM_WORKSHOP_PATH="$HOME/.local/share/Steam/steamapps/workshop" >> ~/.bashrc
-```
 
 # Installation for Development (Developers)
-
 Clone repository and install with pip.
 ```
 mkdir -p ~/build
@@ -118,39 +109,46 @@ Usage:
 rmm [options] config
 rmm [options] export [-e]|[-d] <file>
 rmm [options] import <file>
+rmm [options] enable [-a]|[-f file]|<packageid>|<term>
+rmm [options] disable [-a]|[-f file]|<packageid>|<term>
+rmm [options] remove [-a]|[-f file]|<packageid>|<term>
 rmm [options] list
-rmm [options] query [<term>...]
-rmm [options] remove [-f file]|[<term>...]
-rmm [options] search <term>...
+rmm [options] query [<term>]
+rmm [options] search <term>
 rmm [options] sort
-rmm [options] sync <name>...
-rmm [options] update [sync options]
+rmm [options] sync <name>
+rmm [options] update
+rmm [options] verify
+
 rmm -h | --help
 rmm -v | --version
 
 Operations:
-config            Sort and enable/disable mods
+config            Sort and enable/disable mods with ncurses
 export            Save mod list to file.
 import            Install a mod list from a file.
 list              List installed mods.
 query             Search installed mods.
 remove            Remove installed mod.
 search            Search Workshop.
-sort              Auto-sort your modslist
+sort              Auto-sort your modlist
 sync              Install or update a mod.
 update            Update all mods from Steam.
+verify            Checks that enabled mods are compatible
+enable            Enable mods
+disable           Disable mods
+order             Lists mod order
 
 Parameters
 term              Name, author, steamid
-file              File path
+file              File path for a mod list
 name              Name of mod.
 
-Export Option:
+Flags
+-a                Performs operation on all mods
 -d                Export disabled mods to modlist.
 -e                Export enabled mods to modlist.
-
-Remove Options:
--f                Remove mods listed in modlist.
+-f                Specify mods in a mod list
 
 Options:
 -p --path DIR     RimWorld path.
@@ -164,6 +162,10 @@ RMM_USER_PATH     Folder containing saves and config
 
 Pathing Preference:
 CLI Argument > Environment Variable > Defaults
+
+Tip:
+You can use enable, disable, and remove with no
+argument to select from all mods.
 ```
 
 ## How To
@@ -192,6 +194,13 @@ Removing a package:
 rmm remove fuzzy
 ```
 
+Removing all / a range packages:
+
+``` sh
+rmm remove 
+# all packages will be listed. specify your desired range at the interactive prompt.
+```
+
 Saving a mod list
 ```
 rmm export ~/modlist.txt
@@ -207,23 +216,33 @@ Update all packages:
 rmm update
 ```
 
-Backup mod directory:
-```
-rmm backup ~/rimworld.tar
-```
-
-Migrate from Steam Workshop to RimWorld 'Mods' folder:
-``` 
-rmm migrate
+Auto sort mods:
+``` sh
+rmm sort
 ```
 
+Manually sort mods:
+``` sh
+rmm config
+```
+
+Show mod load order:
+
+``` sh
+rmm order
+```
 
 ### Tips
-Duplicating a mod setup to a new installation:
+1. Duplicating a mod setup to a new installation:
 ``` sh
 rmm -p ~/path-to-game export ~/modlist.txt
 rmm -p ~/path-to-game import ~/modlist.txt
 ```
+
+2. It is recommended to auto sort your mods after installation of a mod or modlist.
+
+# Related Projects
+- [rwm](https://github.com/AOx0/rwm): Rust rewrite of RMM.
 
 # Contributing
 If you would like to contribute your time or efforts towards the project, you are welcome to and your efforts will be appreciated. Please format any code changes through python-black.
