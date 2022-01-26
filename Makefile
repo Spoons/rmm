@@ -16,6 +16,10 @@ upload: venv dist_clean package
 	pip install twine ; \
 	python3 -m twine upload dist/*
 
+upload_test: venv dist_clean package
+	pip install twine ; \
+	python3 -m twine upload --repository testpypi dist/*
+
 install: venv
 	python3 -m pip install .
 
