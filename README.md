@@ -12,11 +12,13 @@ To use RMM you need:
 
 # Installation for Windows
 1. Install latest Python 3 release from `https://www.python.org/downloads/windows/`
-   Ensure 'add to PATH' is checked / enabled during installation.
+   - Ensure 'add to PATH' is checked / enabled during installation.
+
 2. Open 'cmd' with Administrator privileges and type `python -m pip install --user rmm-spoons`
-   Use with `python -m rmm`
-4. (Optional) Add `C:\Users\[username]\AppData\Roaming\Python\[version]\Scripts\` to PATH.
-   Use with `rmm`
+   - Use with `python -m rmm`
+
+3. (Optional) Add `C:\Users\[username]\AppData\Roaming\Python\[version]\Scripts\` to PATH.
+    - Use with `rmm`
    
 # Installation for MacOS:
 1. Install Python3
