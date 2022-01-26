@@ -90,7 +90,8 @@ class Manager:
                 print(f"Installed {mod.title()}")
 
     def installed_mods(self):
-        return ModFolder.read(self.config.mod_path)
+        mods = ModFolder.read(self.config.mod_path)
+        if self.modsconfig:
 
     def search_installed(self, term):
         return ModFolder.search(self.config.mod_path, term)

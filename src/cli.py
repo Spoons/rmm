@@ -364,7 +364,14 @@ def _import(args: list[str], manager: Manager):
     manager.sync_mods(mod_install_queue)
 
 
+def windows_setup():
+    if not util.platform() == "win32":
+        return
+    pass
+
+
 def run():
+    windows_setup()
     config = parse_options()
     if config.mod_path:
         config.mod_path = PathFinder.find_game(config.mod_path)
@@ -386,7 +393,7 @@ def run():
     if not config.workshop_path:
         try:
             config.workshop_path = PathFinder.find_workshop(
-                Path(os.environ["RMM_WORKSHOP_PATH"])
+                util.sanitize_path(Path(os.environ["RMM_WORKSHOP_PATH"]))
             )
         except KeyError:
             if config.mod_path:
@@ -402,7 +409,7 @@ def run():
     if not config.config_path:
         try:
             config.config_path = PathFinder.find_config(
-                Path(os.environ["RMM_CONFIG_PATH"])
+                util.sanitize_path(Path(os.environ["RMM_CONFIG_PATH"]))
             )
         except KeyError:
             config.config_path = PathFinder.find_config_defaults()
@@ -414,6 +421,7 @@ def run():
             config.modsconfig_path = cast(Path, config.modsconfig_path)
 
     manager = Manager(config)
+
 
     actions = [
         "export",
