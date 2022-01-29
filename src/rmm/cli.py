@@ -326,12 +326,10 @@ def config(args: list[str], manager: Manager):
     import curses
     import rmm.multiselect as multiselect
 
-    mod_state = curses.wrapper(multiselect.multiselect_order_menu)
+    data = manager.order_all_mods()
+    mod_state = curses.wrapper(multiselect.multiselect_order_menu, data)
+    new_mod_order = [ k for k,v in mod_state if v == True ]
 
-    new_mod_order = []
-    for n in mod_state:
-        if n[1] == True:
-            new_mod_order.append(Mod(packageid=n[0]))
     manager.modsconfig.mods = new_mod_order
     manager.modsconfig.write()
 

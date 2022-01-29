@@ -12,6 +12,7 @@ class AbortModOrderException(Exception):
 
 
 def multiselect_order_menu(stdscr, data):
+    data = [ ( n.packageid, n.enabled ) for n in data ]
     k = 0
 
     # Clear and refresh the screen for a blank canvas

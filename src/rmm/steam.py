@@ -44,7 +44,7 @@ class SteamDownloader:
             pass
 
     @staticmethod
-    def download(mods: List[int]) -> Tuple[List[Mod], Path]:
+    def find_path():
         home_path = None
         mod_path = None
         try:
@@ -68,30 +68,34 @@ class SteamDownloader:
             raise Exception("Error could not get temporary directory")
 
         if util.platform() == "win32":
+            mod_path = home_path / "steamapps/workshop/content/294100/"
+        elif util.platform() == "darwin":
+            mod_path = home_path / "Library/Application Support/Steam/steamapps/workshop/content/294100/"
+        else:
+            mod_path = home_path / ".steam/steamapps/workshop/content/294100/"
+        return (home_path, mod_path)
+
+    @staticmethod
+    def download(mods: List[int]) -> Tuple[List[Mod], Path]:
+        home_path, mod_path = SteamDownloader.find_path()
+
+        if not home_path:
+            raise Exception("Error could not get temporary directory")
+
+        workshop_item_arg = " +workshop_download_item 294100 "
+        if util.platform() == "win32":
             os.chdir(home_path)
             if not (home_path / "steamcmd.exe").exists():
                 SteamDownloader.download_steamcmd_windows(home_path)
-            mod_path = home_path / "steamapps/workshop/content/294100/"
-            workshop_item_arg = " +workshop_download_item 294100 "
+
             query = "steamcmd +login anonymous {} +quit".format(
                 workshop_item_arg + workshop_item_arg.join(str(m) for m in mods),
             )
             print()
             for n in util.execute(query):
                 print(n, end="")
-        elif util.platform() == "darwin":
-            mod_path = home_path / "Library/Application Support/Steam/steamapps/workshop/content/294100/"
-            workshop_item_arg = " +workshop_download_item 294100 "
-            query = 'env HOME="{}" steamcmd +login anonymous {} +quit >&2'.format(
-                str(home_path),
-                workshop_item_arg + workshop_item_arg.join(str(m) for m in mods),
-            )
-            print(query)
-            util.run_sh(query)
         else:
-            mod_path = home_path / ".steam/steamapps/workshop/content/294100/"
-            workshop_item_arg = " +workshop_download_item 294100 "
-            query = 'env HOME="{}" steamcmd +login anonymous "{}" +quit >&2'.format(
+            query = 'env HOME="{}" steamcmd +login anonymous {} +quit >&2'.format(
                 str(home_path),
                 workshop_item_arg + workshop_item_arg.join(str(m) for m in mods),
             )
