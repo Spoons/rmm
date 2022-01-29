@@ -121,8 +121,8 @@ class Mod:
 
         except OSError as e:
             # if not "Place mods here" in path.name:
-            #     print(f"Ignoring {path}")
-            raise e
+            print(f"Ignoring {path}")
+            # raise e
 
     def __eq__(self, other):
         if isinstance(other, Mod):
