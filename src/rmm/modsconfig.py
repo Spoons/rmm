@@ -71,7 +71,7 @@ class ModsConfig:
     def enable_mod(self, m: Mod):
         self.mods.append(m)
 
-    def remove_mod(self, m: Mod):
+    def disable_mod(self, m: Mod):
         for k, _ in enumerate(self.mods):
             if self.mods[k] == m:
                 del self.mods[k]
@@ -166,6 +166,8 @@ class ModsConfig:
                 self.mods = [Mod(packageid=n) for n in sorted_mods]
                 self.mods = util.list_loop_exclusion(self.mods, mods_for_removal)
                 print("Auto-sort complete")
+
+                print("Verifying state: {}".format("good" if self.verify_state(populated_mods) else "bad"))
                 return
             except nx.exception.NetworkXUnfeasible:
                 if count >= 10:
@@ -176,3 +178,19 @@ class ModsConfig:
                 print(cycle)
                 DG.remove_edge(*cycle[0])
                 count += 1
+
+    def verify_state(self, mods: list[Mod]):
+        populated_mods = [m for m in mods if m in self.mods]
+        incompatible = set()
+        for m in populated_mods:
+            try:
+                for n in m.incompatible:
+                    incompatible.add(n)
+            except TypeError:
+                pass
+
+        for n in populated_mods:
+            if n in incompatible:
+                return False
+
+        return True

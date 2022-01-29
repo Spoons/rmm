@@ -25,18 +25,22 @@ Usage:
 rmm [options] config
 rmm [options] export [-e]|[-d] <file>
 rmm [options] import <file>
+rmm [options] enable [-a]|[-f file]|<packageid>|<term>
+rmm [options] disable [-a]|[-f file]|<packageid>|<term>
+rmm [options] remove [-a]|[-f file]|<packageid>|<term>
 rmm [options] list
-rmm [options] query [<term>...]
-rmm [options] remove [-f file]|[<term>...]
-rmm [options] search <term>...
+rmm [options] query [<term>]
+rmm [options] search <term>
 rmm [options] sort
-rmm [options] sync <name>...
-rmm [options] update [sync options]
+rmm [options] sync <name>
+rmm [options] update
+rmm [options] verify
+
 rmm -h | --help
 rmm -v | --version
 
 Operations:
-config            Sort and enable/disable mods
+config            Sort and enable/disable mods with ncurses
 export            Save mod list to file.
 import            Install a mod list from a file.
 list              List installed mods.
@@ -46,18 +50,21 @@ search            Search Workshop.
 sort              Auto-sort your modslist
 sync              Install or update a mod.
 update            Update all mods from Steam.
+verify            Checks that enabled mods are compatible
+enable            Enable mods
+disable           Disable mods
+order             Lists mod order
 
 Parameters
 term              Name, author, steamid
-file              File path
+file              File path for a mod list
 name              Name of mod.
 
-Export Option:
+Flags
+-a                Performs operation on all mods
 -d                Export disabled mods to modlist.
 -e                Export enabled mods to modlist.
-
-Remove Options:
--f                Remove mods listed in modlist.
+-f                Specify mods in a mod list
 
 Options:
 -p --path DIR     RimWorld path.
@@ -71,6 +78,10 @@ RMM_USER_PATH     Folder containing saves and config
 
 Pathing Preference:
 CLI Argument > Environment Variable > Defaults
+
+Tip:
+You can use enable, disable, and remove with no
+argument to select from all mods.
 """
 
 
@@ -89,19 +100,34 @@ def tabulate_mod_or_wr(
     numbered=False,
     reverse=False,
     alpha=False,
+    reversed_numbering = True,
+    light = False
 ) -> str:
     if not mods:
         return ""
-    mod_list = [[n.name, n.author[:20]] for n in mods if n.name and n.author]
-    headers = ["name", "author"]
+
+    if isinstance(mods[0], Mod):
+        headers = ["package", "name", "author", "enabled"]
+        mod_list = [[n.packageid, n.name, n.author[:20], n.enabled] for n in mods]
+    elif isinstance(mods[0], WorkshopResult) or light:
+        headers = ["name", "author"]
+        mod_list = [[n.name, n.author[:20]] for n in mods]
+    else:
+        return None
+
+
     if numbered:
-        headers = ["no", "name", "author"]
+        headers = ["no"] + headers
         new_list = []
         offset = 0
         if not reverse:
             offset = len(mod_list) + 1
-        for k, v in enumerate(mod_list):
-            new_list.append([abs(k + 1 - offset), v[0], v[1]])
+        if reversed_numbering:
+            for k, v in enumerate(mod_list):
+                new_list.append([abs(k + 1 - offset), *v])
+        else:
+            for k, v in enumerate(mod_list):
+                new_list.append([k+1, *v])
 
         mod_list = new_list
     if alpha:
@@ -167,7 +193,7 @@ def version(args: list[str], manager: Manager):
 def _list(args: list[str], manager: Manager):
     if not manager.config.mod_path:
         raise Exception("Game path not defined")
-    print(tabulate_mod_or_wr(manager.installed_mods()))
+    print(tabulate_mod_or_wr(manager.installed_mods(), alpha=True))
 
 
 def query(args: list[str], manager: Manager):
@@ -224,70 +250,86 @@ def sync(args: list[str], manager: Manager):
     manager.sync_mods(queue)
 
 
-def remove(args: list[str], manager: Manager):
-    if not manager.config.mod_path:
-        raise Exception("Game path not defined")
-
-    remove_queue = None
-    if args[1] == "-f":
-        modlist_filename = args[2]
-        args = args[2:]
-        modlist_path = Path(modlist_filename)
-        remove_queue = ModListFile.read(modlist_path)
-
-    if not remove_queue:
-        search_term = " ".join(args[1:])
-        search_result = manager.search_installed(search_term)
-
+def _interactive_query(manager: Manager, term: str, verb: str):
+        search_result = manager.search_installed(term)
         if not search_result:
             print(f"No packages matching {search_term}")
             return False
 
         print(tabulate_mod_or_wr(search_result, reverse=True, numbered=True))
-        print("Packages to remove (eg: 1 2 3 or 1-3)")
+        print(f"Packages to {verb} (eg: 1,3,5-9)")
 
         selection = capture_range(len(search_result))
         if selection:
-            remove_queue = [search_result[m - 1] for m in selection]
+            return [search_result[m - 1] for m in selection]
         else:
             print("No selection made.")
-            return
+            return None
 
-    print("Would you like to remove? ")
+def _interactive_verify(mods: list[Mod], verb: str):
 
-    for m in remove_queue:
+    for m in mods:
         print(m.title())
 
+    print(f"Proceed with {verb}? ", end="")
     print("[y/n]: ", end="")
 
     if input() != "y":
-        print("nah")
         return False
+    return True
 
-    manager.remove_mods(remove_queue)
+def _cli_parse_modlist(args):
+        modlist_filename = args[2]
+        modlist_path = Path(modlist_filename)
+        queue = ModListFile.read(modlist_path)
+        return(queue)
 
+
+def _interactive_selection(args: list[str], manager: Manager, verb: str, f):
+    if not manager.config.mod_path:
+        raise Exception("Game path not defined")
+
+    queue = None
+    if len(args) == 1:
+        pass
+    elif args[1] == "-f":
+        print(args[2])
+        queue = _cli_parse_modlist(args)
+        args = args[2:]
+
+    elif args[1] == "-a":
+        queue = manager.installed_mods()
+
+    if not queue:
+        search_term = " ".join(args[1:])
+        queue = _interactive_query(manager, search_term, verb)
+
+    if not queue:
+        exit(0)
+    _interactive_verify(queue, verb)
+    f(queue)
+
+def remove(args: list[str], manager: Manager):
+    _interactive_selection(args, manager, "remove", manager.remove_mods)
+
+def enable(args: list[str], manager: Manager):
+    _interactive_selection(args, manager, "enable", manager.enable_mods)
+    print("\nRecommend to use auto sort")
+
+def disable(args: list[str], manager: Manager):
+    _interactive_selection(args, manager, "disable", manager.disable_mods)
+    print("\nRecommend to use auto sort")
 
 def config(args: list[str], manager: Manager):
     if not manager.config.mod_path:
         raise Exception("Game path not defined")
     if not manager.config.modsconfig_path:
         raise Exception("ModsConfig.xml not found")
-    installed_mods = manager.installed_mods()
-    enabled_mods = manager.enabled_mods()
-
-    mod_state = []
-    for n in enabled_mods:
-        if n in installed_mods + EXPANSION_PACKAGES:
-            mod_state.append((n.packageid, True))
-
-    for n in installed_mods:
-        if n not in enabled_mods:
-            mod_state.append((n.packageid, False))
 
     import curses
-    import multiselect
+    import rmm.multiselect as multiselect
 
-    mod_state = curses.wrapper(multiselect.multiselect_order_menu, mod_state)
+    mod_state = curses.wrapper(multiselect.multiselect_order_menu)
 
     new_mod_order = []
     for n in mod_state:
@@ -365,6 +407,11 @@ def _import(args: list[str], manager: Manager):
 
     manager.sync_mods(mod_install_queue)
 
+def order(args: list[str], manager: Manager):
+    print( tabulate_mod_or_wr(manager.order_mods(), numbered=True, reverse=False, reversed_numbering=False, ))
+
+def verify(args: list[str], manager: Manager):
+    print(manager.verify_mods())
 
 def windows_setup():
     # bat_launcher = """
@@ -473,6 +520,10 @@ def run():
         "export",
         "config",
         "sort",
+        "verify",
+        "enable",
+        "disable",
+        "order",
         ("_import", "import"),
         ("_list", "list", "-Q"),
         ("query", "-Qs"),
