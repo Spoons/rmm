@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+v1.0.5
+------
+
+* fix: update entrypoint for v1 from module
+* fix: readme formatting changes
+
 v1.0.4
 ------
 

@@ -66,7 +66,7 @@ class Manager:
                 mod = Mod.create_from_workshorp_result(mod)
             self.remove_mod(mod)
 
-    def sync_mods(self, queue: list[Mod] | list[WorkshopResult]):
+    def sync_mods(self, queue,  list[WorkshopResult]]):
         (_, steam_cache_path) = SteamDownloader.download(
             [mod.steamid for mod in queue if mod.steamid]
         )

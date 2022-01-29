@@ -16,5 +16,5 @@ class Config:
         self.mod_path = path
         self.workshop_path = workshop_path
         self.config_path = config_path
-        self.modsconfig_path = cast(Path | None, None)
+        self.modsconfig_path = None
         self.USE_HUMAN_NAMES = True
