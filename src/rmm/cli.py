@@ -214,11 +214,12 @@ def sync(args: list[str], manager: Manager):
         exit(0)
     queue = list(reversed([results[m - 1] for m in selection]))
     print(
-        "Package(s): \n{} \n\nwill be installed. Continue? [y/n] ".format(
+        "Package(s): \n{} \n\nwill be installed.".format(
             "  \n".join([f"{m.name} by {m.author}" for m in queue])
         ),
         end="",
     )
+    print()
 
     manager.sync_mods(queue)
 
@@ -297,6 +298,7 @@ def config(args: list[str], manager: Manager):
 
 
 def sort(args: list[str], manager: Manager):
+    # print(manager.config.config_path)
     if not manager.config.mod_path:
         raise Exception("Game path not defined")
     if not manager.config.modsconfig_path:
@@ -365,9 +367,51 @@ def _import(args: list[str], manager: Manager):
 
 
 def windows_setup():
-    if not util.platform() == "win32":
-        return
-    
+    # bat_launcher = """
+    #  @ECHO OFF
+    # SET ThisScriptsDirectory=%~dp0
+    # SET PowerShellScriptPath=%ThisScriptsDirectory%path.ps1
+    # PowerShell -NoProfile -ExecutionPolicy Bypass -Command "& {Start-Process PowerShell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File ""%PowerShellScriptPath%""' -Verb RunAs}"
+    #     """
+    #     powershell = """
+    # $desired_entry = '{}'
+
+    # $old_path = [Environment]::GetEnvironmentVariable('path', 'machine');
+
+    # $old_path_entry_list = ($old_path).split(";")
+    # $new_path_entry_list = new-object system.collections.arraylist
+
+    # foreach($old_path_entry in $old_path_entry_list) {
+    #     if($old_path_entry -eq $desired_entry){
+    #         # ignore old entry
+    #     }else{
+    #         [void]$new_path_entry_list.Add($old_path_entry)
+    #     }
+    # }
+    # [void]$new_path_entry_list.Add($desired_entry)
+    # $new_path = $new_path_entry_list -Join ";"
+
+    # [Environment]::SetEnvironmentVariable('path', $new_path,'Machine');
+    #     """
+    try:
+        if not util.platform() == "win32":
+            pass
+        substring = "site-packages\\rmm"
+        string = os.path.realpath(__file__)
+        if substring in string:
+            string = str(Path(string.split("site-packages\\rmm")[0]) / "Scripts")
+            if string not in os.environ["PATH"]:
+                print(
+                    f'You should add "{string}" to your PATH variable so you can directly access the rmm command.'
+                )
+                # print(string)
+                # with Path("set-path.bat").open('w') as f:
+                #     f.write(bat_launcher)
+                # with Path("path.ps1").open('w') as f:
+                #     f.write(powershell.replace("{}", string))
+                # util.run_sh("set-path.bat")
+    except AttributeError:
+        pass
 
 
 def run():
@@ -377,7 +421,9 @@ def run():
         config.mod_path = PathFinder.find_game(config.mod_path)
     if not config.mod_path:
         try:
-            config.mod_path = PathFinder.find_game(Path(util.sanitize_path(os.environ["RMM_PATH"])))
+            config.mod_path = PathFinder.find_game(
+                Path(util.sanitize_path(os.environ["RMM_PATH"]))
+            )
         except KeyError:
             config.mod_path = PathFinder.find_game_defaults()
 
@@ -442,9 +488,11 @@ def run():
         command = get_long_name_from_alias_map(sys.argv[0], actions)
         if command and command in globals():
             globals()[command](sys.argv, manager)
+            windows_setup()
             sys.exit(0)
 
     print(USAGE)
+    # windows_setup()
     sys.exit(0)
 
 

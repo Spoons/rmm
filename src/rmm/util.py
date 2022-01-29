@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import re
 import shutil
 import subprocess
@@ -9,13 +10,7 @@ from xml.dom import minidom
 
 
 def platform() -> Optional[str]:
-    unixes = ["linux", "darwin", "freebsd"]
-
-    for n in unixes:
-        if sys.platform.startswith(n):
-            return n
-
-    return None
+    return sys.platform
 
 
 def execute(cmd) -> Generator[str, None, None]:
@@ -94,11 +89,12 @@ def et_pretty_xml(root: ET.Element) -> str:
         )
     ).toprettyxml(indent="  ", newl="\n")
 
-def sanitize_path(path: Union[str, Path]):
+
+def sanitize_path(path: str | Path):
     if isinstance(path, Path):
         path = str(path)
 
     if platform() == "win32":
-        path.replace("\"", "")
+        path.replace('"', "")
 
     return Path(path).expanduser()
