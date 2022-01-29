@@ -4,7 +4,7 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Generator, Optional, cast
+from typing import Generator, Optional, cast, Union
 from xml.dom import minidom
 
 
@@ -94,7 +94,7 @@ def et_pretty_xml(root: ET.Element) -> str:
         )
     ).toprettyxml(indent="  ", newl="\n")
 
-def sanitize_path(path: str|Path):
+def sanitize_path(path: Union[str, Path]):
     if isinstance(path, Path):
         path = str(path)
 

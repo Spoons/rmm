@@ -85,7 +85,7 @@ def expand_ranges(s: str) -> str:
 
 
 def tabulate_mod_or_wr(
-    mods: Optional[list[WorkshopResult] | list[Mod]],
+    mods,
     numbered=False,
     reverse=False,
     alpha=False,
