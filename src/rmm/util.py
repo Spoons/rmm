@@ -5,7 +5,7 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Generator, Optional, cast, Union
+from typing import Generator, Optional, cast, Union, List
 from xml.dom import minidom
 
 
@@ -63,10 +63,10 @@ def list_loop_exclusion(a: list, b: list) -> list:
     return [value for value in a if value not in b]
 
 
-def list_grab(element: str, root: ET.Element) -> Optional[list[str]]:
+def list_grab(element: str, root: ET.Element) -> Optional[List[str]]:
     try:
         return cast(
-            Optional[list[str]],
+            Optional[List[str]],
             [n.text for n in cast(ET.Element, root.find(element)).findall("li")],
         )
     except AttributeError:

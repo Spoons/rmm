@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from typing import cast, Union
+from typing import cast, Union, List
 import rmm.util as util
 from rmm.config import Config
 from rmm.mod import Mod, ModFolder, EXPANSION_PACKAGES
@@ -61,13 +61,13 @@ class Manager:
             if self.config.USE_HUMAN_NAMES and m.packageid and pid_path.exists():
                 util.remove(pid_path)
 
-    def remove_mods(self, queue: list[Mod]):
+    def remove_mods(self, queue: List[Mod]):
         for mod in queue:
             if isinstance(mod, WorkshopResult):
                 mod = Mod.create_from_workshorp_result(mod)
             self.remove_mod(mod)
 
-    def sync_mods(self, queue: Union[list[Mod], list[WorkshopResult]]):
+    def sync_mods(self, queue: Union[List[Mod], List[WorkshopResult]]):
         steam_mods, steam_cache_path = SteamDownloader.download(
             [mod.steamid for mod in queue if mod.steamid]
         )

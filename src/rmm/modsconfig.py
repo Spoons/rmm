@@ -2,7 +2,7 @@
 
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import cast
+from typing import cast, List
 from xml.etree import ElementTree as ET
 
 import rmm.util as util
@@ -23,7 +23,7 @@ class ModsConfig:
         self.root = self.element_tree.getroot()
         try:
             enabled = cast(
-                list[str],
+                List[str],
                 util.list_grab("activeMods", self.root),
             )
             # self.mods = [Mod(packageid=pid) for pid in enabled]
@@ -184,7 +184,7 @@ class ModsConfig:
                 DG.remove_edge(*cycle[0])
                 count += 1
 
-    def verify_state(self, mods: list[Mod]):
+    def verify_state(self, mods: List[Mod]):
         if isinstance(mods, list):
             populated_mods = {m.packageid: m for m in mods if m.packageid in self.mods}
         elif isinstance(mods, dict):
