@@ -367,7 +367,7 @@ def _import(args: list[str], manager: Manager):
 def windows_setup():
     if not util.platform() == "win32":
         return
-    pass
+    
 
 
 def run():
