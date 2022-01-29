@@ -9,6 +9,7 @@ RMM v1.0 supports Windows, Linux, and MacOS.
 To use RMM you need:
 - SteamCMD installed and in your path. (Linux/Mac Only)
 - Set RMM_PATH to game path if game is installed to a not default location.
+- Python 3.9+
 
 # Installation for Windows
 1. Install latest Python 3 release from `https://www.python.org/downloads/windows/`
