@@ -1,6 +1,43 @@
 CHANGES
 =======
 
+v1.0.9
+------
+
+* fix: adds check for modsconfig
+* fix: continue merging release code
+* fix: improve performance with dict lookups
+* feat: sort cli functions
+* feat: added verify, order, enable, disable
+* fix: break runner loop
+* fix: cont cross compatibility
+* fix: remove pep-0604 for 3.9 support
+* fix: update entrypoint for v1 from module
+* fix: readme formatting changes
+
+v1.0.4
+------
+
+* feat: updates readme
+
+v1.0.3
+------
+
+* fix: pypi readme
+
+v1.0.2
+------
+
+* feat: adds pipfile
+
+v1.0.1
+------
+
+* fix: win paths
+
+v1.0.0
+------
+
 * feat: add steamcmd auto download on windows
 * fix: sanitize paths
 * fix: formatting

@@ -170,8 +170,8 @@ def _expand_ranges(s: str) -> str:
     ).replace(",", " ")
 
 
-def _tabulate_mod_or_wr(
-    mods: Optional[list[WorkshopResult] | list[Mod]],
+def tabulate_mod_or_wr(
+    mods,
     numbered=False,
     reverse=False,
     alpha=False,
