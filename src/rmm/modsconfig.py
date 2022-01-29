@@ -6,7 +6,7 @@ from typing import cast
 from xml.etree import ElementTree as ET
 
 import rmm.util as util
-from rmm.mod import Mod
+from rmm.mod import EXPANSION_PACKAGES, Mod
 
 
 class ModsConfig:
@@ -26,12 +26,20 @@ class ModsConfig:
                 list[str],
                 util.list_grab("activeMods", self.root),
             )
-            self.mods = [Mod(packageid=pid) for pid in enabled]
+            # self.mods = [Mod(packageid=pid) for pid in enabled]
+            self.mods = { pid:None for pid in enabled}
         except TypeError:
             print("Unable to parse activeMods in ModsConfig")
             raise
         self.version = util.element_grab("version", self.root)
         self.length = len(self.mods)
+        try:
+            self.expansions = util.list_grab("knownExpansions", self.root)
+            if not self.expansions:
+                self.expansions = []
+        except TypeError:
+            self.expansions = []
+            pass
 
     def write(self):
         active_mods = self.root.find("activeMods")
@@ -47,7 +55,7 @@ class ModsConfig:
         try:
             for mod in self.mods:
                 new_element = ET.SubElement(active_mods, "li")
-                new_element.text = mod.packageid
+                new_element.text = mod
         except AttributeError:
             raise Exception("Unable to find 'activeMods' in ModsConfig")
 
@@ -61,16 +69,12 @@ class ModsConfig:
             print("Unable to write ModsConfig")
             raise
 
-    def expansions(self):
-        pass
-
     def enable_mod(self, m: Mod):
-        self.mods.append(m)
+        self.mods[m.packageid] = None
 
-    def remove_mod(self, m: Mod):
-        for k, _ in enumerate(self.mods):
-            if self.mods[k] == m:
-                del self.mods[k]
+    def disable_mod(self, m: Mod):
+        if m.packageid in self.mods:
+            del self.mods[m.packageid]
 
     def autosort(self, mods, config):
         import json
@@ -81,43 +85,46 @@ class ModsConfig:
 
         before_core = ["brrainz.harmony", "me.samboycoding.betterloading"]
 
+        core = ["ludeon.rimworld"]
+
         expansion_load_order = [
-            "ludeon.rimworld",
             "ludeon.rimworld.royalty",
             "ludeon.rimworld.ideology",
         ]
 
-        combined_load_order = before_core + expansion_load_order
+        combined_load_order = before_core + core + expansion_load_order
         for n, pid in enumerate(combined_load_order):
-            if pid not in self.mods:
+            if not pid in self.mods:
                 del combined_load_order[n]
 
         for k in range(0, len(combined_load_order)):
             for j in range(k + 1, len(combined_load_order)):
                 DG.add_edge(combined_load_order[j], combined_load_order[k])
 
-        populated_mods = [m for m in mods if m in self.mods]
+        populated_mods = {m.packageid: m for m in mods if m in self.mods}
 
-        with (config.game_path / "1847679158/db/communityRules.json").open("r") as f:
+        with (
+            config.mod_path / "rupal.rimpymodmanagerdatabase/db/communityRules.json"
+        ).open("r", encoding="utf-8") as f:
             community_db = json.load(f)
 
-        for pid in populated_mods:
+        for pid, m in populated_mods.items():
             try:
-                for j in community_db["rules"][pid.packageid]["loadAfter"]:
+                for j in community_db["rules"][m.packageid]["loadAfter"]:
                     if j:
                         try:
-                            pid.before.add(j)
+                            m.before.add(j)
                         except AttributeError:
-                            pid.before = set(j)
+                            m.before = set(j)
             except KeyError:
                 pass
             try:
-                for j in community_db["rules"][pid.packageid]["loadBefore"]:
+                for j in community_db["rules"][m.packageid]["loadBefore"]:
                     if j:
                         try:
-                            pid.after.add(j)
+                            m.after.add(j)
                         except AttributeError:
-                            pid.after = set(j)
+                            m.after = set(j)
             except KeyError:
                 pass
 
@@ -131,27 +138,41 @@ class ModsConfig:
         ):
             DG.add_edge("juanlopez2008.lightsout", "murmur.walllight")
 
-        for m in populated_mods:
-            if rocketman and m.packageid != "krkr.rocketman":
-                DG.add_edge("krkr.rocketman", m.packageid)
+        mods_for_removal = {
+            n
+            for n in expansion_load_order + before_core
+            if n not in EXPANSION_PACKAGES + mods
+            or n not in self.mods
+        }
+
+        for pid, m in populated_mods.items():
+            if rocketman and pid != "krkr.rocketman":
+                DG.add_edge("krkr.rocketman", pid)
             if not m in combined_load_order:
                 for n in combined_load_order:
-                    DG.add_edge(m.packageid, n)
+                    DG.add_edge(pid, n)
             if m.after:
                 for a in m.after:
                     if a in self.mods:
-                        DG.add_edge(a.lower(), m.packageid)
+                        DG.add_edge(a.lower(), pid)
             if m.before:
                 for b in m.before:
                     if b in self.mods:
-                        DG.add_edge(m.packageid, b.lower())
+                        DG.add_edge(pid, b.lower())
 
         count = 0
         while True:
             try:
                 sorted_mods = reversed(list(nx.topological_sort(DG)))
-                self.mods = [Mod(packageid=n) for n in sorted_mods]
+                self.mods = [n for n in sorted_mods]
+                self.mods = util.list_loop_exclusion(self.mods, mods_for_removal)
                 print("Auto-sort complete")
+
+                print(
+                    "Verifying state: {}".format(
+                        "good" if self.verify_state(populated_mods) else "bad"
+                    )
+                )
                 return
             except nx.exception.NetworkXUnfeasible:
                 if count >= 10:
@@ -162,3 +183,27 @@ class ModsConfig:
                 print(cycle)
                 DG.remove_edge(*cycle[0])
                 count += 1
+
+    def verify_state(self, mods: list[Mod]):
+        if isinstance(mods, list):
+            populated_mods = {m.packageid: m for m in mods if m.packageid in self.mods}
+        elif isinstance(mods, dict):
+            populated_mods = {
+                m.packageid: m for m in mods.values() if m.packageid in self.mods
+            }
+        else:
+            raise Exception("bad data type")
+
+        incompatible = dict()
+        for m in populated_mods.values():
+            try:
+                for n in m.incompatible:
+                    incompatible[n] = None
+            except TypeError:
+                pass
+
+        for n in populated_mods:
+            if n in incompatible:
+                return False
+
+        return True

@@ -19,15 +19,21 @@ class PathFinder:
 
     DEFAULT_WORKSHOP_PATHS = [
         ("~/.local/share/Steam/steamapps/workshop/content/294100", "linux"),
-        ("~/Library/Application Support/Steam/steamapps/workshop/content/294100", "darwin"),
-        ("C:/Program Files (x86)/Steam/steamapps/common/workshop/content/294100", "win32"),
+        (
+            "~/Library/Application Support/Steam/steamapps/workshop/content/294100",
+            "darwin",
+        ),
+        (
+            "C:/Program Files (x86)/Steam/steamapps/common/workshop/content/294100",
+            "win32",
+        ),
         ("C:/Program Files/Steam/steamapps/common/workshop/content/294100", "win32"),
     ]
 
     DEFAULT_CONFIG_PATHS = [
         ("~/Library/Application Support/Rimworld/", "darwin"),
         ("~/.config/unity3d/Ludeon Studios/RimWorld by Ludeon Studios", "linux"),
-        ("~/AppData/LocalLow/Ludeon Studios\RimWorld by Ludeon Studios", "win32"),
+        ("~/AppData/LocalLow/Ludeon Studios/RimWorld by Ludeon Studios", "win32"),
     ]
 
     @staticmethod
@@ -48,7 +54,7 @@ class PathFinder:
 
     @staticmethod
     def _is_config_dir(p: Path) -> bool:
-        files_to_find = ["Config", "prefs", "Saves"]
+        files_to_find = ["Config", "Saves"]
         child_names = [f.name for f in p.iterdir()]
         for target_name in files_to_find:
             if not target_name in child_names:
@@ -78,7 +84,8 @@ class PathFinder:
     @staticmethod
     def _search_defaults(defaults: list[str], f) -> Optional[Path]:
         platform = util.platform()
-        for path in [ n[0] for n in defaults if n[1] == platform ]:
+        for path in [n[0] for n in defaults if n[1] == platform]:
+            path = util.sanitize_path(path)
             if path := f(Path(path)):
                 return path
         return None

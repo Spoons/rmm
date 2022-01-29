@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import re
 import shutil
 import subprocess
@@ -9,13 +10,7 @@ from xml.dom import minidom
 
 
 def platform() -> Optional[str]:
-    unixes = ["linux", "darwin", "freebsd"]
-
-    for n in unixes:
-        if sys.platform.startswith(n):
-            return n
-
-    return None
+    return sys.platform
 
 
 def execute(cmd) -> Generator[str, None, None]:
@@ -99,6 +94,6 @@ def sanitize_path(path: Union[str, Path]):
         path = str(path)
 
     if platform() == "win32":
-        path.replace("\"", "")
+        path.replace('"', "")
 
     return Path(path).expanduser()

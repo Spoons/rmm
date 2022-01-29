@@ -2,29 +2,45 @@
 
 import os
 import re
+import subprocess
 import tempfile
-import zipfile
+import urllib.error
 import urllib.request
+import zipfile
 from pathlib import Path
-from typing import cast
 
 from bs4 import BeautifulSoup
 
 import rmm.util as util
 from rmm.mod import Mod, ModFolder
 
-STEAMCMD_WINDOWS_URL='https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip'
+STEAMCMD_WINDOWS_URL = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip"
+
 
 class SteamDownloader:
     @staticmethod
     def download_steamcmd_windows(path):
         download_path = path / "steamcmd.zip"
-        urllib.request.urlretrieve(STEAMCMD_WINDOWS_URL, download_path)
+        max_retries = 10
+        print("Installing SteamCMD")
+        for count in range(max_retries + 1):
+            try:
+                urllib.request.urlretrieve(STEAMCMD_WINDOWS_URL, download_path)
+            except urllib.error.URLError as e:
+                if count < max_retries:
+                    continue
+                raise e
 
+        print("Extracting steamcmd.zip...")
         with zipfile.ZipFile(download_path, "r") as zr:
             zr.extractall(path)
 
-
+        os.chdir(path)
+        try:
+            for n in util.execute("steamcmd +login anonymous +quit"):
+                print(n, end="")
+        except subprocess.CalledProcessError:
+            pass
 
     @staticmethod
     def download(mods: list[int]) -> tuple[list[Mod], Path]:
@@ -59,6 +75,7 @@ class SteamDownloader:
             query = "steamcmd +login anonymous {} +quit".format(
                 workshop_item_arg + workshop_item_arg.join(str(m) for m in mods),
             )
+            print()
             for n in util.execute(query):
                 print(n, end="")
         else:
@@ -126,12 +143,19 @@ class WorkshopWebScraper:
 
     @classmethod
     def _request(cls, url: str, term: str):
-        return urllib.request.urlopen(
-            urllib.request.Request(
-                url.format(term.replace(" ", "+")),
-                headers=WorkshopWebScraper.headers,
-            )
-        )
+        max_retries = 5
+        for n in range(max_retries + 1):
+            try:
+                return urllib.request.urlopen(
+                    urllib.request.Request(
+                        url.format(term.replace(" ", "+")),
+                        headers=WorkshopWebScraper.headers,
+                    )
+                )
+            except urllib.error.URLError as e:
+                if n < max_retries:
+                    continue
+                raise e
 
     @classmethod
     def detail(cls, steamid: int) -> WorkshopResult:

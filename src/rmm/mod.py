@@ -6,11 +6,15 @@ import xml.etree.ElementTree as ET
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Optional, cast
+from dataclasses import dataclass
+from collections import OrderedDict
 
 import rmm.util as util
 from rmm.exception import InvalidPackageHash
+DEBUG = False
 
 
+@dataclass
 class Mod:
     def __init__(
         self,
@@ -70,11 +74,17 @@ class Mod:
         try:
             tree = ET.parse(path / "About/About.xml")
             root = tree.getroot()
-
             try:
                 packageid = cast(str, cast(ET.Element, root.find("packageId")).text)
-            except AttributeError:
-                return None
+            except AttributeError as e:
+                name = util.element_grab("name", root)
+                author = util.element_grab("author", root)
+                if name and author:
+                    packageid = "{}.{}".format(name.lower(), author.lower())
+                else:
+                    if DEBUG:
+                        raise e
+                    return None
 
             def read_steamid(path: Path) -> Optional[int]:
                 try:
@@ -109,10 +119,10 @@ class Mod:
                 ignored=read_ignored(path),
             )
 
-        except OSError:
-            if not "Place mods here" in path.name:
-                print(f"Ignoring {path}")
-            return None
+        except OSError as e:
+            # if not "Place mods here" in path.name:
+            #     print(f"Ignoring {path}")
+            raise e
 
     def __eq__(self, other):
         if isinstance(other, Mod):
@@ -137,21 +147,39 @@ class Mod:
     def __str__(self):
         return f"<Mod: '{self.packageid}'>"
 
+    @staticmethod
+    def list_to_dict(mods: list[Mod]):
+        hm = dict()
+        for n in mods:
+            if not n.packageid:
+                raise Exception("No package id in hashmap")
+            hm[n.packageid] = n
+
+        return hm
+
 
 class ModFolder:
     @staticmethod
     def read(path: Path) -> list[Mod]:
         with Pool(16) as p:
-            mods = list(
-                filter(
-                    None,
-                    p.map(
-                        Mod.create_from_path,
-                        path.iterdir(),
-                    ),
-                )
+            mods = cast(
+                list[Mod],
+                list(
+                    filter(
+                        None,
+                        p.map(
+                            Mod.create_from_path,
+                            path.iterdir(),
+                        ),
+                    )
+                ),
             )
+
         return mods
+
+    @staticmethod
+    def read_dict(path: Path):
+        return Mod.list_to_dict(ModFolder.read(path))
 
     @staticmethod
     def search(path: Path, search_term) -> list[Mod]:
@@ -163,9 +191,13 @@ class ModFolder:
             or search_term == r.steamid
         ]
 
+    @staticmethod
+    def search_dict(path: Path, search_term) -> dict[str, Mod]:
+        return Mod.list_to_dict(ModFolder.search(path, search_term))
+
 
 EXPANSION_PACKAGES = [
-    Mod(packageid="ludeon.rimworld"),
-    Mod(packageid="ludeon.rimworld.ideology"),
-    Mod(packageid="ludeon.rimworld.royalty"),
+    Mod(packageid="ludeon.rimworld", author="Ludeon", name="RimWorld"),
+    Mod(packageid="ludeon.rimworld.ideology", author="Ludeon", name="Ideology"),
+    Mod(packageid="ludeon.rimworld.royalty", author="Ludeon", name="Royalty"),
 ]
