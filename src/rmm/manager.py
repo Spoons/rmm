@@ -136,7 +136,7 @@ class Manager:
         installed_mods = self.installed_mods()
         return util.list_loop_exclusion(installed_mods, enabled_mods)
 
-    def _enable_mod(self, mod: str | Mod):
+    def _enable_mod(self, mod: Union[ str, Mod ]):
         if isinstance(mod, str):
             mod = Mod(packageid=mod)
         if not mod.packageid:
@@ -150,7 +150,7 @@ class Manager:
         print("Updating ModsConfig.xml")
         self.modsconfig.write()
 
-    def _disable_mod(self, mod: str | Mod):
+    def _disable_mod(self, mod: Union[ str, Mod ]):
         if isinstance(mod, str):
             mod = Mod(packageid=mod)
         if not mod.packageid:

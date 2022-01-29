@@ -91,7 +91,7 @@ def _interactive_query(manager: Manager, term: str, verb: str):
         print(f"No packages matching {search_term}")
         return False
 
-    print(_tabulate_mod_or_wr(search_result, reverse=True, numbered=True))
+    print(tabulate_mod_or_wr(search_result, reverse=True, numbered=True))
     print(f"Packages to {verb} (eg: 1,3,5-9)")
 
     selection = capture_range(len(search_result))
@@ -231,20 +231,20 @@ def version(args: list[str], manager: Manager):
 def _list(args: list[str], manager: Manager):
     if not manager.config.mod_path:
         raise Exception("Game path not defined")
-    print(_tabulate_mod_or_wr(manager.installed_mods(), alpha=True))
+    print(tabulate_mod_or_wr(manager.installed_mods(), alpha=True))
 
 
 def query(args: list[str], manager: Manager):
     if not manager.config.mod_path:
         raise Exception("Game path not defined")
     search_term = " ".join(args[1:])
-    print(_tabulate_mod_or_wr(manager.search_installed(search_term), alpha=True))
+    print(tabulate_mod_or_wr(manager.search_installed(search_term), alpha=True))
 
 
 def search(args: list[str], manager: Manager):
     joined_args = " ".join(args[1:])
     results = WorkshopWebScraper.search(joined_args, reverse=True)
-    print(_tabulate_mod_or_wr(results))
+    print(tabulate_mod_or_wr(results))
 
 
 def capture_range(length: int):
@@ -271,7 +271,7 @@ def capture_range(length: int):
 def sync(args: list[str], manager: Manager):
     joined_args = " ".join(args[1:])
     results = WorkshopWebScraper.search(joined_args)
-    print(_tabulate_mod_or_wr(results, numbered=True, reverse=True, reversed_numbering=True))
+    print(tabulate_mod_or_wr(results, numbered=True, reverse=True, reversed_numbering=True))
     print("Packages to install (eg: 2 or 1-3)")
     selection = capture_range(len(results))
     if not selection:
@@ -392,7 +392,7 @@ def _import(args: list[str], manager: Manager):
 
 def order(args: list[str], manager: Manager):
     print(
-        _tabulate_mod_or_wr(
+        tabulate_mod_or_wr(
             manager.order_mods(),
             numbered=True,
             reverse=False,
@@ -450,7 +450,6 @@ def parse_options() -> Config:
     return config
 
 
->>>>>>> v3
 def run():
     windows_setup()
     config = parse_options()
