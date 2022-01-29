@@ -31,7 +31,7 @@ class PathFinder:
     ]
 
     DEFAULT_CONFIG_PATHS = [
-        ("~/Library/Application Support/Rimworld/", "darwin"),
+        ("~/Library/Application Support/RimWorld/", "darwin"),
         ("~/.config/unity3d/Ludeon Studios/RimWorld by Ludeon Studios", "linux"),
         ("~/AppData/LocalLow/Ludeon Studios/RimWorld by Ludeon Studios", "win32"),
     ]

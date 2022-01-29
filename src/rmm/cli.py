@@ -85,6 +85,17 @@ argument to select from all mods.
 """
 
 
+def mods_config_dec(func):
+    def wrapper_func(*args, **kwargs):
+        try:
+            args[1].modsconfig
+        except AttributeError:
+            print("Please specify your RimWorld config directory with -u\n" \
+                  "If you have not yet, start your game to create this directory.")
+            exit(0)
+        func(*args, **kwargs)
+    return wrapper_func
+
 def _interactive_query(manager: Manager, term: str, verb: str):
     search_result = manager.search_installed(term)
     if not search_result:
@@ -228,12 +239,13 @@ def version(args: list[str], manager: Manager):
         print("version unknown")
 
 
+@mods_config_dec
 def _list(args: list[str], manager: Manager):
     if not manager.config.mod_path:
         raise Exception("Game path not defined")
     print(tabulate_mod_or_wr(manager.installed_mods(), alpha=True))
 
-
+@mods_config_dec
 def query(args: list[str], manager: Manager):
     if not manager.config.mod_path:
         raise Exception("Game path not defined")
@@ -268,6 +280,7 @@ def capture_range(length: int):
     return selection
 
 
+@mods_config_dec
 def sync(args: list[str], manager: Manager):
     joined_args = " ".join(args[1:])
     results = WorkshopWebScraper.search(joined_args)
@@ -291,17 +304,19 @@ def sync(args: list[str], manager: Manager):
 def remove(args: list[str], manager: Manager):
     _interactive_selection(args, manager, "remove", manager.remove_mods)
 
-
+@mods_config_dec
 def enable(args: list[str], manager: Manager):
     _interactive_selection(args, manager, "enable", manager.enable_mods)
     print("\nRecommend to use auto sort")
 
 
+@mods_config_dec
 def disable(args: list[str], manager: Manager):
     _interactive_selection(args, manager, "disable", manager.disable_mods)
     print("\nRecommend to use auto sort")
 
 
+@mods_config_dec
 def config(args: list[str], manager: Manager):
     if not manager.config.mod_path:
         raise Exception("Game path not defined")
@@ -321,6 +336,7 @@ def config(args: list[str], manager: Manager):
     manager.modsconfig.write()
 
 
+@mods_config_dec
 def sort(args: list[str], manager: Manager):
     # print(manager.config.config_path)
     if not manager.config.mod_path:
@@ -332,6 +348,7 @@ def sort(args: list[str], manager: Manager):
     manager.modsconfig.write()
 
 
+@mods_config_dec
 def update(args: list[str], manager: Manager):
     if not manager.config.mod_path:
         raise Exception("Game path not defined")
@@ -352,6 +369,7 @@ def update(args: list[str], manager: Manager):
     manager.sync_mods(manager.installed_mods())
 
 
+@mods_config_dec
 def export(args: list[str], manager: Manager):
     if not manager.config.mod_path:
         raise Exception("Game path not defined")
@@ -369,6 +387,7 @@ def export(args: list[str], manager: Manager):
     print(f"Mod list written to {joined_args}")
 
 
+@mods_config_dec
 def _import(args: list[str], manager: Manager):
     joined_args = " ".join(args[1:])
     mod_install_queue = ModListFile.read(Path(joined_args))
@@ -390,6 +409,7 @@ def _import(args: list[str], manager: Manager):
     manager.sync_mods(mod_install_queue)
 
 
+@mods_config_dec
 def order(args: list[str], manager: Manager):
     print(
         tabulate_mod_or_wr(
@@ -486,7 +506,7 @@ def run():
                 config.workshop_path = PathFinder.find_workshop_defaults()
 
     if config.config_path:
-        config.config_path = PathFinder.find_game(config.config_path)
+        config.config_path = PathFinder.find_config(config.config_path)
 
     if not config.config_path:
         try:
