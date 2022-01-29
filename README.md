@@ -31,6 +31,10 @@ echo "export PATH=\"$PATH:$HOME/Library/Python/$(python3 --version | awk '{split
 ```
 5. Use with `rmm`
 
+## Upgrading on MacOS
+Please perodically update RMM with the following command:
+`pip3 install --upgrade rmm-spoons`
+
 # Installation for Arch Linux
 
 RMM has an AUR package 'rmm'. The package brings in all dependencies, including steamcmd, and can be installed with makepkg and git or an AUR helper as shown below. No other steps are required:
@@ -79,10 +83,13 @@ python -m rmm
 ```
 
 ## 3. Installing package from PIP
-
 ``` sh
-python3 -m pip install --user rmm-spoons
+python -m pip install --user rmm-spoons
 ```
+
+## Upgrading with PIP
+Please perodically update RMM with the following command:
+`python -m pip install --user --upgrade rmm-spoons`
 
 # Configuration
 ## Set RMM_PATH (Optional)
