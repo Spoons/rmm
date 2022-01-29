@@ -7,6 +7,7 @@ import tempfile
 import urllib.error
 import urllib.request
 import zipfile
+from typing import List, Tuple
 from pathlib import Path
 
 from bs4 import BeautifulSoup
@@ -43,7 +44,7 @@ class SteamDownloader:
             pass
 
     @staticmethod
-    def download(mods: list[int]) -> tuple[list[Mod], Path]:
+    def download(mods: List[int]) -> Tuple[List[Mod], Path]:
         home_path = None
         mod_path = None
         try:
@@ -78,6 +79,15 @@ class SteamDownloader:
             print()
             for n in util.execute(query):
                 print(n, end="")
+        elif util.platform() == "darwin":
+            mod_path = home_path / "Library/Application Support/Steam/steamapps/workshop/content/294100/"
+            workshop_item_arg = " +workshop_download_item 294100 "
+            query = 'env HOME="{}" steamcmd +login anonymous {} +quit >&2'.format(
+                str(home_path),
+                workshop_item_arg + workshop_item_arg.join(str(m) for m in mods),
+            )
+            print(query)
+            util.run_sh(query)
         else:
             mod_path = home_path / ".steam/steamapps/workshop/content/294100/"
             workshop_item_arg = " +workshop_download_item 294100 "
@@ -210,7 +220,7 @@ class WorkshopWebScraper:
         )
 
     @classmethod
-    def search(cls, term: str, reverse: bool = False) -> list[WorkshopResult]:
+    def search(cls, term: str, reverse: bool = False) -> List[WorkshopResult]:
         page_result = BeautifulSoup(
             cls._request(cls.index_query, term),
             "html.parser",
