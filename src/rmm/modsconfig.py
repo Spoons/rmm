@@ -6,7 +6,7 @@ from typing import cast
 from xml.etree import ElementTree as ET
 
 import rmm.util as util
-from rmm.mod import Mod
+from rmm.mod import EXPANSION_PACKAGES, Mod
 
 
 class ModsConfig:
@@ -32,6 +32,13 @@ class ModsConfig:
             raise
         self.version = util.element_grab("version", self.root)
         self.length = len(self.mods)
+        try:
+            self.expansions = util.list_grab("knownExpansions", self.root)
+            if not self.expansions:
+                self.expansions = []
+        except TypeError:
+            self.expansions = []
+            pass
 
     def write(self):
         active_mods = self.root.find("activeMods")
@@ -61,9 +68,6 @@ class ModsConfig:
             print("Unable to write ModsConfig")
             raise
 
-    def expansions(self):
-        pass
-
     def enable_mod(self, m: Mod):
         self.mods.append(m)
 
@@ -81,13 +85,14 @@ class ModsConfig:
 
         before_core = ["brrainz.harmony", "me.samboycoding.betterloading"]
 
+        core = ["ludeon.rimworld"]
+
         expansion_load_order = [
-            "ludeon.rimworld",
             "ludeon.rimworld.royalty",
             "ludeon.rimworld.ideology",
         ]
 
-        combined_load_order = before_core + expansion_load_order
+        combined_load_order = before_core + core + expansion_load_order
         for n, pid in enumerate(combined_load_order):
             if pid not in self.mods:
                 del combined_load_order[n]
@@ -98,7 +103,9 @@ class ModsConfig:
 
         populated_mods = [m for m in mods if m in self.mods]
 
-        with (config.game_path / "1847679158/db/communityRules.json").open("r") as f:
+        with (
+            config.mod_path / "rupal.rimpymodmanagerdatabase/db/communityRules.json"
+        ).open("r", encoding="utf-8") as f:
             community_db = json.load(f)
 
         for pid in populated_mods:
@@ -131,6 +138,12 @@ class ModsConfig:
         ):
             DG.add_edge("juanlopez2008.lightsout", "murmur.walllight")
 
+        mods_for_removal = {
+            n
+            for n in expansion_load_order + before_core
+            if n not in self.expansions + mods
+        }
+
         for m in populated_mods:
             if rocketman and m.packageid != "krkr.rocketman":
                 DG.add_edge("krkr.rocketman", m.packageid)
@@ -151,6 +164,7 @@ class ModsConfig:
             try:
                 sorted_mods = reversed(list(nx.topological_sort(DG)))
                 self.mods = [Mod(packageid=n) for n in sorted_mods]
+                self.mods = util.list_loop_exclusion(self.mods, mods_for_removal)
                 print("Auto-sort complete")
                 return
             except nx.exception.NetworkXUnfeasible:
