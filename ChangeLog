@@ -1,6 +1,19 @@
 CHANGES
 =======
 
+v1.0.11
+-------
+
+* fix: config menu error
+* fix: correctly grab temp dir on macos
+* fix: increment python required version
+* fix: steam downloader macos path fix
+
+v1.0.10
+-------
+
+* fix: adds Union typing import
+
 v1.0.9
 ------
 
