@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
 
-from rmm.cli import run
+import rmm.cli
 
-run()
+rmm.cli.run()
