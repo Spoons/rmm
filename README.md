@@ -21,9 +21,14 @@ To use RMM you need:
     - Use with `rmm`
    
 # Installation for MacOS:
-1. Install Python3
-2. `python -m pip install --user rmm-spoons`
-3. Use with `python -m rmm`
+1. Install Python3 with brew.
+2. `pip3 install --user rmm-spoons`
+3. Use with `python3 -m rmm`
+4. Add python bin directory to your path:
+``` sh
+echo "export PATH=\"$PATH:$HOME/Library/Python/$(python3 --version | awk '{split($2,a,".") ; print a[1] "." a[2] }')/bin\"" >> ~/.zshrc
+```
+5. Use with `rmm`
 
 # Installation for Arch Linux
 
