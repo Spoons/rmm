@@ -86,7 +86,6 @@ class PathFinder:
         platform = util.platform()
         for path in [n[0] for n in defaults if n[1] == platform]:
             path = util.sanitize_path(path)
-            print(path)
             if path := f(Path(path)):
                 return path
         return None
