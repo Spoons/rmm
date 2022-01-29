@@ -1,6 +1,17 @@
 CHANGES
 =======
 
+v1.0.6
+------
+
+* fix: remove pep-0604 for 3.9 support
+
+v1.0.5
+------
+
+* fix: update entrypoint for v1 from module
+* fix: readme formatting changes
+
 v1.0.4
 ------
 
