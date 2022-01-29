@@ -170,15 +170,27 @@ class Manager:
     def sort_mods(self):
         self.modsconfig.autosort(self.installed_mods(), self.config)
 
-    def order_mods(self):
-        enabled_mods = self._enabled_mod_pids()
+    def order_all_mods(self):
         installed_mods = self.installed_mods()
+        enabled_mods = self._enabled_mod_pids()
+        sorted_mods = self._order_mods(enabled_mods, installed_mods)
+        for m in installed_mods:
+            if m not in sorted_mods:
+                sorted_mods.append(m)
+        return(sorted_mods)
 
+    def _order_mods(self, enabled_mods, installed_mods):
         sorted_mods = []
+        for m in EXPANSION_PACKAGES:
+            m.enabled = True
         for m in enabled_mods:
-            for j, im in enumerate(installed_mods + EXPANSION_PACKAGES):
+            for im in installed_mods + EXPANSION_PACKAGES:
                 if m == im:
                     sorted_mods.append(im)
                     break
-
         return sorted_mods
+
+    def order_mods(self):
+        enabled_mods = self._enabled_mod_pids()
+        installed_mods = self.installed_mods()
+        return self._order_mods(enabled_mods, installed_mods)
