@@ -48,7 +48,7 @@ class SteamDownloader:
         home_path = None
         mod_path = None
         try:
-            for d in Path("/tmp").iterdir():
+            for d in Path(tempfile.gettempdir()).iterdir():
                 if d.name[0:4] == "rmm-" and d.is_dir() and (d / ".rmm").is_file():
                     home_path = d
                     break
