@@ -52,9 +52,15 @@ class ModListV2Format(ModListSerializer):
                     steamid=int(parsed[cls.HEADER["STEAM_ID"]]),
                     repo_url=parsed[cls.HEADER["REPO_URL"]] if not "" else None,
                 )
-            except (ValueError, IndexError):
+            except IndexError:
                 if parsed:
                     print("Unable to import: ", parsed)
+                continue
+            except ValueError:
+                yield Mod(
+                    packageid=parsed[cls.HEADER["PACKAGE_ID"]],
+                    repo_url=parsed[cls.HEADER["REPO_URL"]] if not "" else None,
+                )
                 continue
 
     @classmethod

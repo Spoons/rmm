@@ -2,9 +2,10 @@
 
 from pathlib import Path
 
+from typing import cast
 import rmm.util as util
 from rmm.config import Config
-from rmm.mod import Mod, ModFolder
+from rmm.mod import Mod, ModFolder, EXPANSION_PACKAGES
 from rmm.modsconfig import ModsConfig
 from rmm.steam import SteamDownloader, WorkshopResult
 
@@ -89,11 +90,22 @@ class Manager:
             if success:
                 print(f"Installed {mod.title()}")
 
+    def _mod_config_state(self, mods):
+        if self.modsconfig:
+            enabled_mods = self.enabled_mods()
+            for n in mods:
+                if n in enabled_mods:
+                    n.enabled = True
+                else:
+                    n.enabled = False
+        return mods
     def installed_mods(self):
-        return ModFolder.read(self.config.mod_path)
+        mods = ModFolder.read(self.config.mod_path)
+        return self._mod_config_state(mods)
 
     def search_installed(self, term):
-        return ModFolder.search(self.config.mod_path, term)
+        mods = ModFolder.search(self.config.mod_path, term)
+        return self._mod_config_state(mods)
 
     def enabled_mods(self):
         return self.modsconfig.mods
@@ -102,3 +114,51 @@ class Manager:
         enabled_mods = self.enabled_mods()
         installed_mods = self.installed_mods()
         return util.list_loop_exclusion(installed_mods, enabled_mods)
+
+    def _enable_mod(self, mod: str|Mod):
+        if isinstance(mod, str):
+            mod = Mod(packageid=mod)
+        if not mod.packageid:
+            raise Exception("No package id for specifed mod")
+        self.modsconfig.enable_mod(mod)
+
+    def enable_mods(self, mods):
+        for n in mods:
+            print("Enabling " + n.title())
+            self._enable_mod(n)
+        print("Updating ModsConfig.xml")
+        self.modsconfig.write()
+
+
+    def _disable_mod(self, mod: str|Mod):
+        if isinstance(mod, str):
+            mod = Mod(packageid=mod)
+        if not mod.packageid:
+            raise Exception("No package id for specifed mod")
+        self.modsconfig.disable_mod(mod)
+
+    def disable_mods(self, mods):
+        for n in mods:
+            print("Disabling " + n.title())
+            self._disable_mod(n)
+        print("Updating ModsConfig.xml")
+        self.modsconfig.write()
+
+    def verify_mods(self):
+        return self.modsconfig.verify_state(self.installed_mods())
+
+    def sort_mods(self):
+        self.modsconfig.autosort(self.installed_mods(), self.config)
+
+    def order_mods(self):
+        enabled_mods = self.enabled_mods()
+        installed_mods = self.installed_mods()
+
+        sorted_mods = []
+        for m in enabled_mods:
+            for j,im in enumerate(installed_mods + EXPANSION_PACKAGES):
+                if m == im:
+                    sorted_mods.append(im)
+                    break
+
+        return sorted_mods
