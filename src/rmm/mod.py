@@ -96,7 +96,8 @@ class Mod:
                         .decode()
                     )
                 except (OSError, ValueError, IOError) as e:
-                    print(e)
+                    if DEBUG:
+                        print(e)
                     return None
 
             def read_ignored(path: Path):
