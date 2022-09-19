@@ -113,7 +113,7 @@ class Mod:
                 after=util.list_grab("loadBefore", root),
                 incompatible=util.list_grab("incompatibleWith", root),
                 dirname=path.name,
-                author=util.element_grab("author", root),
+                author=util.element_grab("author", root) if util.element_grab("author", root) else ', '.join(util.list_grab("authors", root)),
                 name=util.element_grab("name", root),
                 versions=util.list_grab("supportedVersions", root),
                 steamid=read_steamid(path),
