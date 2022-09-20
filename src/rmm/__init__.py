@@ -1,3 +1,6 @@
 import importlib.metadata
 
-__version__ = importlib.metadata.version("rmm-spoons")
+try:
+    __version__ = importlib.metadata.version("rmm-spoons")
+except importlib.metadata.PackageNotFoundError:
+    pass
