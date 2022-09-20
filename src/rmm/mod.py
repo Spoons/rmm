@@ -124,6 +124,8 @@ class Mod:
             # if not "Place mods here" in path.name:
             print(f"Ignoring {path}")
             # raise e
+        except ET.ParseError as e:
+            print(f"Ignoring {path}.\n\t{path}/About/About.xml contains invalid XML.")
 
     def __eq__(self, other):
         if isinstance(other, Mod):
