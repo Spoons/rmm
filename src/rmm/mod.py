@@ -203,4 +203,5 @@ EXPANSION_PACKAGES = [
     Mod(packageid="ludeon.rimworld", author="Ludeon", name="RimWorld"),
     Mod(packageid="ludeon.rimworld.ideology", author="Ludeon", name="Ideology"),
     Mod(packageid="ludeon.rimworld.royalty", author="Ludeon", name="Royalty"),
+    Mod(packageid="ludeon.rimworld.biotech", author="Ludeon", name="Biotech"),
 ]
