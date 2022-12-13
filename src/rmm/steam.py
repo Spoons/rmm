@@ -72,7 +72,7 @@ class SteamDownloader:
         elif util.platform() == "darwin":
             mod_path = home_path / "Library/Application Support/Steam/steamapps/workshop/content/294100/"
         else:
-            mod_path = home_path / ".steam/steamapps/workshop/content/294100/"
+            mod_path = home_path / "Steam/steamapps/workshop/content/294100/"
         return (home_path, mod_path)
 
     @staticmethod
