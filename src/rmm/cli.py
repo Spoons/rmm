@@ -264,10 +264,8 @@ def capture_range(length: int):
         return None
     while True:
         try:
-            selection = input()
-            selection = [
-                int(s) for s in _expand_ranges(selection).split(" ")
-            ]
+            strInput = input()
+            selection = capture_indexes(strInput)
             for n in selection:
                 if n > length or n <= 0:
                     raise InvalidSelectionException("Out of bounds")
@@ -277,6 +275,19 @@ def capture_range(length: int):
         except InvalidSelectionException:
             print("Selection out of bounds.")
 
+    return selection
+
+# get mod index from input by space separated list of numbers or ranges like 1-3
+def capture_indexes(strInput: str):
+    if not strInput:
+        return None
+    selection = []
+    for s in strInput.split(" "):
+        if "-" in s:
+            start, end = s.split("-")
+            selection.extend(range(int(start), int(end) + 1))
+        else:
+            selection.append(int(s))
     return selection
 
 
