@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Optional, cast
-from dataclasses import dataclass
-from collections import OrderedDict
 
 import rmm.util as util
 from rmm.exception import InvalidPackageHash
+
 DEBUG = False
 
 
@@ -103,7 +103,7 @@ class Mod:
             def read_ignored(path: Path):
                 try:
                     return (path / ".rmm_ignore").is_file()
-                except (OSError) as e:
+                except OSError as e:
                     print(e)
                     return False
 
@@ -113,14 +113,16 @@ class Mod:
                 after=util.list_grab("loadBefore", root),
                 incompatible=util.list_grab("incompatibleWith", root),
                 dirname=path.name,
-                author=util.element_grab("author", root) if util.element_grab("author", root) else ', '.join(util.list_grab("authors", root)),
+                author=util.element_grab("author", root)
+                if util.element_grab("author", root)
+                else ", ".join(util.list_grab("authors", root)),
                 name=util.element_grab("name", root),
                 versions=util.list_grab("supportedVersions", root),
                 steamid=read_steamid(path),
                 ignored=read_ignored(path),
             )
 
-        except OSError as e:
+        except OSError:
             # if not "Place mods here" in path.name:
             print(f"Ignoring {path}")
             # raise e

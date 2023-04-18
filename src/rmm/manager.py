@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
 from pathlib import Path
+from typing import List, Union
 
-from typing import cast, Union, List
 import rmm.util as util
 from rmm.config import Config
-from rmm.mod import Mod, ModFolder, EXPANSION_PACKAGES
+from rmm.mod import EXPANSION_PACKAGES, Mod, ModFolder
 from rmm.modsconfig import ModsConfig
 from rmm.steam import SteamDownloader, WorkshopResult
 
@@ -78,11 +78,10 @@ class Manager:
                 if len(new_mod) == 1:
                     mod = new_mod[0]
                 else:
-                    mod = Mod(steamid = mod.steamid)
+                    mod = Mod(steamid=mod.steamid)
             if not isinstance(mod.steamid, int):
                 continue
             success = False
-            try_install = False
             try:
                 self.remove_mod(mod)
                 success = self.install_mod(steam_cache_path, mod.steamid)
@@ -119,7 +118,7 @@ class Manager:
         return self._mod_config_state(mods)
 
     def _enabled_mod_pids(self):
-        return [ k for k in self.modsconfig.mods ]
+        return [k for k in self.modsconfig.mods]
 
     def enabled_mods(self):
         installed_mods = self.installed_mods_dict()
@@ -136,7 +135,7 @@ class Manager:
         installed_mods = self.installed_mods()
         return util.list_loop_exclusion(installed_mods, enabled_mods)
 
-    def _enable_mod(self, mod: Union[ str, Mod ]):
+    def _enable_mod(self, mod: Union[str, Mod]):
         if isinstance(mod, str):
             mod = Mod(packageid=mod)
         if not mod.packageid:
@@ -150,7 +149,7 @@ class Manager:
         print("Updating ModsConfig.xml")
         self.modsconfig.write()
 
-    def _disable_mod(self, mod: Union[ str, Mod ]):
+    def _disable_mod(self, mod: Union[str, Mod]):
         if isinstance(mod, str):
             mod = Mod(packageid=mod)
         if not mod.packageid:
@@ -177,7 +176,7 @@ class Manager:
         for m in installed_mods:
             if m not in sorted_mods:
                 sorted_mods.append(m)
-        return(sorted_mods)
+        return sorted_mods
 
     def _order_mods(self, enabled_mods, installed_mods):
         sorted_mods = []

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
+
 import rmm.util as util
 
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
-from pathlib import Path
-from typing import Optional, cast
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
 
 
 @dataclass
