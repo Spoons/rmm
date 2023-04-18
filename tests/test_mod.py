@@ -1,8 +1,9 @@
-import pytest
 import os
 import tempfile
+
+import pytest
+
 import rmm.core as core
-import pathlib as pl
 
 test_mod_about_xml = """<?xml version="1.0" encoding="utf-8"?>
 <ModMetaData>

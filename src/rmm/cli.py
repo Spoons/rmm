@@ -5,7 +5,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Optional, cast
+from typing import cast
 
 from tabulate import tabulate
 
@@ -13,7 +13,7 @@ import rmm.util as util
 from rmm.config import Config
 from rmm.exception import InvalidSelectionException
 from rmm.manager import Manager
-from rmm.mod import EXPANSION_PACKAGES, Mod
+from rmm.mod import Mod
 from rmm.modlist import ModListFile, ModListV2Format
 from rmm.path import PathFinder
 from rmm.steam import WorkshopResult, WorkshopWebScraper
@@ -90,11 +90,15 @@ def mods_config_dec(func):
         try:
             args[1].modsconfig
         except AttributeError:
-            print("Please specify your RimWorld config directory with -u\n" \
-                  "If you have not yet, start your game to create this directory.")
+            print(
+                "Please specify your RimWorld config directory with -u\n"
+                "If you have not yet, start your game to create this directory."
+            )
             exit(0)
         func(*args, **kwargs)
+
     return wrapper_func
+
 
 def _interactive_query(manager: Manager, term: str, verb: str):
     search_result = manager.search_installed(term)
@@ -116,7 +120,6 @@ def _interactive_query(manager: Manager, term: str, verb: str):
 
 
 def _interactive_verify(mods: list[Mod], verb: str):
-
     for m in mods:
         print(m.title())
 
@@ -245,6 +248,7 @@ def _list(args: list[str], manager: Manager):
         raise Exception("Game path not defined")
     print(tabulate_mod_or_wr(manager.installed_mods(), alpha=True))
 
+
 @mods_config_dec
 def query(args: list[str], manager: Manager):
     if not manager.config.mod_path:
@@ -277,6 +281,7 @@ def capture_range(length: int):
 
     return selection
 
+
 # get mod index from input by space separated list of numbers or ranges like 1-3
 def capture_indexes(strInput: str):
     if not strInput:
@@ -295,7 +300,11 @@ def capture_indexes(strInput: str):
 def sync(args: list[str], manager: Manager):
     joined_args = " ".join(args[1:])
     results = WorkshopWebScraper.search(joined_args)
-    print(tabulate_mod_or_wr(results, numbered=True, reverse=True, reversed_numbering=True))
+    print(
+        tabulate_mod_or_wr(
+            results, numbered=True, reverse=True, reversed_numbering=True
+        )
+    )
     print("Packages to install (eg: 2 or 1-3)")
     selection = capture_range(len(results))
     if not selection:
@@ -314,6 +323,7 @@ def sync(args: list[str], manager: Manager):
 
 def remove(args: list[str], manager: Manager):
     _interactive_selection(args, manager, "remove", manager.remove_mods)
+
 
 @mods_config_dec
 def enable(args: list[str], manager: Manager):
@@ -335,11 +345,12 @@ def config(args: list[str], manager: Manager):
         raise Exception("ModsConfig.xml not found")
 
     import curses
+
     import rmm.multiselect as multiselect
 
     data = manager.order_all_mods()
     mod_state = curses.wrapper(multiselect.multiselect_order_menu, data)
-    new_mod_order = [ k for k,v in mod_state if v == True ]
+    new_mod_order = [k for k, v in mod_state if v == True]
 
     manager.modsconfig.mods = new_mod_order
     manager.modsconfig.write()
@@ -532,7 +543,6 @@ def run():
             config.modsconfig_path = cast(Path, config.modsconfig_path)
 
     manager = Manager(config)
-
 
     actions = [
         "export",

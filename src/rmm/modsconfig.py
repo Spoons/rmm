@@ -2,9 +2,8 @@
 
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import cast, List
+from typing import List, cast
 from xml.etree import ElementTree as ET
-from rmm.steam import SteamDownloader
 
 import rmm.util as util
 from rmm.mod import EXPANSION_PACKAGES, Mod
@@ -28,7 +27,7 @@ class ModsConfig:
                 util.list_grab("activeMods", self.root),
             )
             # self.mods = [Mod(packageid=pid) for pid in enabled]
-            self.mods = { pid:None for pid in enabled}
+            self.mods = {pid: None for pid in enabled}
         except TypeError:
             print("Unable to parse activeMods in ModsConfig")
             raise
@@ -40,7 +39,6 @@ class ModsConfig:
                 self.expansions = []
         except TypeError:
             self.expansions = []
-            pass
 
     def write(self):
         active_mods = self.root.find("activeMods")
@@ -104,15 +102,17 @@ class ModsConfig:
 
         populated_mods = {m.packageid: m for m in mods if m in self.mods}
 
-        rules_path = Path(config.mod_path / "rupal.rimpymodmanagerdatabase/db/communityRules.json")
+        rules_path = Path(
+            config.mod_path / "rupal.rimpymodmanagerdatabase/db/communityRules.json"
+        )
         if not rules_path.is_file():
             print("Downloading rules file\n")
             # import rmm.steam
             # rules_cache_path = Path(SteamDownloader.find_path()[1]/ "1847679158")
             # rmm.steam.SteamDownloader.download([1847679158])
             import rmm.manager
-            rmm.manager.Manager(config).sync_mods([Mod( steamid=1847679158 )])
 
+            rmm.manager.Manager(config).sync_mods([Mod(steamid=1847679158)])
 
         with (
             config.mod_path / "rupal.rimpymodmanagerdatabase/db/communityRules.json"
@@ -152,8 +152,7 @@ class ModsConfig:
         mods_for_removal = {
             n
             for n in expansion_load_order + before_core
-            if n not in EXPANSION_PACKAGES + mods
-            or n not in self.mods
+            if n not in EXPANSION_PACKAGES + mods or n not in self.mods
         }
 
         for pid, m in populated_mods.items():

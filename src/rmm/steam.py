@@ -7,8 +7,8 @@ import tempfile
 import urllib.error
 import urllib.request
 import zipfile
-from typing import List, Tuple
 from pathlib import Path
+from typing import List, Tuple
 
 from bs4 import BeautifulSoup
 
@@ -70,7 +70,10 @@ class SteamDownloader:
         if util.platform() == "win32":
             mod_path = home_path / "steamapps/workshop/content/294100/"
         elif util.platform() == "darwin":
-            mod_path = home_path / "Library/Application Support/Steam/steamapps/workshop/content/294100/"
+            mod_path = (
+                home_path
+                / "Library/Application Support/Steam/steamapps/workshop/content/294100/"
+            )
         else:
             mod_path = home_path / ".steam/steamapps/workshop/content/294100/"
         return (home_path, mod_path)
@@ -101,10 +104,9 @@ class SteamDownloader:
             )
             util.run_sh(query)
 
-# TODO: ugly work around for weird steam problem
+        # TODO: ugly work around for weird steam problem
         if util.platform() == "linux" and not mod_path.exists():
             mod_path = SteamDownloader.replace_path(mod_path)
-
 
         return (ModFolder.read(mod_path), mod_path)
 
@@ -120,8 +122,6 @@ class SteamDownloader:
                 path_parts.append(n)
 
         return Path(*reversed(path_parts))
-
-
 
 
 class WorkshopResult:

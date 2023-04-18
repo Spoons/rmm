@@ -1,11 +1,10 @@
-from contextlib import contextmanager
 import re
 import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Generator, Optional, cast, Union, List
+from typing import Generator, List, Optional, Union, cast
 from xml.dom import minidom
 
 
@@ -88,6 +87,7 @@ def et_pretty_xml(root: ET.Element) -> str:
             (ET.tostring(cast(ET.Element, root), "utf-8").decode()),
         )
     ).toprettyxml(indent="  ", newl="\n")
+
 
 def sanitize_path(path: Union[str, Path]):
     if isinstance(path, Path):
