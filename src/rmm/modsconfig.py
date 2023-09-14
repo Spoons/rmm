@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import List, cast
 from xml.etree import ElementTree as ET
 
-import util
-from mod import EXPANSION_PACKAGES, Mod
+from . import util
+from .mod import EXPANSION_PACKAGES, Mod
 
 
 class ModsConfig:

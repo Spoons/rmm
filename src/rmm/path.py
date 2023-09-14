@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import List, Optional
 
-import util as util
+from . import util
 
 
 class PathFinder:

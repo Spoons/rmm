@@ -9,14 +9,14 @@ from typing import cast
 
 from tabulate import tabulate
 
-import util
-from config import Config
-from exception import InvalidSelectionException
-from manager import Manager
-from mod import Mod
-from modlist import ModListFile, ModListV2Format
-from path import PathFinder
-from steam import WorkshopResult, WorkshopWebScraper
+from . import util
+from .config import Config
+from .exception import InvalidSelectionException
+from .manager import Manager
+from .mod import Mod
+from .modlist import ModListFile, ModListV2Format
+from .path import PathFinder
+from .steam import WorkshopResult, WorkshopWebScraper
 
 USAGE = """
 RimWorld Mod Manager
