@@ -3,11 +3,11 @@
 from pathlib import Path
 from typing import List, Union
 
-import util as util
-from config import Config
-from mod import EXPANSION_PACKAGES, Mod, ModFolder
-from modsconfig import ModsConfig
-from steam import SteamDownloader, WorkshopResult
+from . import util
+from .config import Config
+from .mod import EXPANSION_PACKAGES, Mod, ModFolder
+from .modsconfig import ModsConfig
+from .steam import SteamDownloader, WorkshopResult
 
 
 class Manager:

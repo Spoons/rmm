@@ -8,8 +8,8 @@ from multiprocessing import Pool
 from pathlib import Path
 from typing import Optional, cast
 
-import util
-from exception import InvalidPackageHash
+from . import util
+from .exception import InvalidPackageHash
 
 DEBUG = False
 

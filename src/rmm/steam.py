@@ -12,8 +12,8 @@ from typing import List, Tuple
 
 from bs4 import BeautifulSoup
 
-import util as util
-from mod import Mod, ModFolder
+from . import util
+from .mod import Mod, ModFolder
 
 STEAMCMD_WINDOWS_URL = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip"
 
