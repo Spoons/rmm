@@ -34,6 +34,7 @@ a DRM-free installer.
    1. [Other Linux Distributions](#installation-for-other-linux-distributions-via-pypi)
 1. [Configuration](#configuration)
 1. [Usage](#usage)
+1. [Example](#example)
 1. [Tips](#tips)
 1. [Contributing](#contributing)
 1. [License](#license)
@@ -136,6 +137,73 @@ export RMM_PATH="~/PATHTOGAME/game/Mods"
 ```
 
 ## Usage
+```
+RimWorld Mod Manager
+
+Usage:
+rmm [options] config
+rmm [options] export [-e]|[-d] <file>
+rmm [options] import <file>
+rmm [options] enable [-a]|[-f file]|<packageid>|<term>
+rmm [options] disable [-a]|[-f file]|<packageid>|<term>
+rmm [options] remove [-a]|[-f file]|<packageid>|<term>
+rmm [options] list
+rmm [options] query [<term>]
+rmm [options] search <term>
+rmm [options] sort
+rmm [options] sync <name>
+rmm [options] update
+rmm [options] verify
+
+rmm -h | --help
+rmm -v | --version
+
+Operations:
+config            Sort and enable/disable mods with ncurses
+export            Save mod list to file.
+import            Install a mod list from a file.
+list              List installed mods.
+query             Search installed mods.
+remove            Remove installed mod.
+search            Search Workshop.
+sort              Auto-sort your modlist
+sync              Install or update a mod.
+update            Update all mods from Steam.
+verify            Checks that enabled mods are compatible
+enable            Enable mods
+disable           Disable mods
+order             Lists mod order
+
+Parameters
+term              Name, author, steamid
+file              File path for a mod list
+name              Name of mod.
+
+Flags
+-a                Performs operation on all mods
+-d                Export disabled mods to modlist.
+-e                Export enabled mods to modlist.
+-f                Specify mods in a mod list
+
+Options:
+-p --path DIR     RimWorld path.
+-w --workshop DIR Workshop Path.
+-u --user DIR     User config path.
+
+Environment Variables:
+RMM_PATH          Folder containings Mods
+RMM_WORKSHOP_PATH Folder containing Workshop mods (optional)
+RMM_USER_PATH     Folder containing saves and config
+
+Pathing Preference:
+CLI Argument > Environment Variable > Defaults
+
+Tip:
+You can use enable, disable, and remove with no
+argument to select from all mods.
+```
+
+## Example
 List installed packages:
 ```  sh
 rmm list
