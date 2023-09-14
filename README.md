@@ -1,211 +1,163 @@
 # RMM: RimWorld Mod Manager
 
-Do you dislike DRM based platforms but love RimWorld and it's mods? RMM is cross platform mod manager that allows you to download, update, auto-sort, and configure mods for the game without relying on the Steam consumer client. RMM has a keyboard based interface that is easy to use and will be familiar to Linux users and developers. 
 
-RMM v1.0 supports Windows, Linux, and MacOS. 
+[![RMM](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/rmm-spoons/main/assets/badge/v2.json)](https://github.com/spoons/rmm)
+[![image](https://img.shields.io/pypi/v/rmm-spoons.svg)](https://pypi.python.org/pypi/rmm-spoons)
+[![image](https://img.shields.io/pypi/l/rmm-spoons.svg)](https://pypi.python.org/pypi/rmm-spoons)
+[![image](https://img.shields.io/pypi/pyversions/rmm-spoons.svg)](https://pypi.python.org/pypi/rmm-spoons)
+[![Actions status](https://github.com/spoons/rmm/workflows/CI/badge.svg)](https://github.com/spoons/rmm/actions)
 
-## Prerequisites 
+A mod manager for RimWorld.
 
-To use RMM you need:
-- SteamCMD installed and in your path. (Linux/Mac Only)
-- Set RMM_PATH to game path if game is installed to a not default location.
-- Python 3.9+
+- 🌍 Cross-platform: Supports Linux, MacOS, Windows
+- 🎮 Broad Game Source Support: Steam, GOG, and DRM-free installations
+- 🔗 RimWorld Versions: Seamlessly supports 1.0 and above
+- 🚀 Fetch Directly: Installs and updates mods from the Steam Workshop
+- 🛡️ No Strings Attached: Operate without a Steam account
+- 📑 Modlists: Organize, activate, deactivate with ease
+- 🔄 Stay Updated: Automatic mod updates at your fingertips
+- 🧩 Smart Sorting: Auto-arrange mods for optimal load order
+- ❌ Simplified Cleanup: Easy mod deactivation and removal
+- 📦 Always Safe: Mod backup and restore features
+- ↕️ Import/Export: Convenient modlist transitions and sharing
+- 🧰 Flexible and User-Friendly: Customizable paths, settings, and configurations
 
-# Installation for Windows
-1. Install latest Python 3 release from `https://www.python.org/downloads/windows/`
-   - Ensure 'add to PATH' is checked / enabled during installation.
+RMM aims to allow subscribing to and managing mods for RimWorld without a Steam account or have installed the game with
+a DRM-free installer.
 
-2. Open 'cmd' with Administrator privileges and type `python -m pip install --user rmm-spoons`
-   - Use with `python -m rmm`
+## Table of Contents
+1. [Getting Sarted](#getting-started)
+1. [Detailed Installation Guide](#detailed-installation-guide)
+   1. [Windows](#windows)
+   1. [MacOS](#macos)
+   1. [Arch Linux](#arch-linux)
+   1. [Other Linux Distributions](#installation-for-other-linux-distributions-via-pypi)
+1. [Configuration](#configuration)
+1. [Usage](#usage)
+1. [Tips](#tips)
+1. [Contributing](#contributing)
+1. [License](#license)
 
-3. (Optional) Add `C:\Users\[username]\AppData\Roaming\Python\[version]\Scripts\` to PATH.
-    - Use with `rmm`
-   
-# Installation for MacOS:
-1. Install Python3 with brew.
-2. `pip3 install --user rmm-spoons`
-3. Use with `python3 -m rmm`
-4. Add python bin directory to your path:
-``` sh
-echo "export PATH=\"$PATH:$HOME/Library/Python/$(python3 --version | awk '{split($2,a,".") ; print a[1] "." a[2] }')/bin\"" >> ~/.zshrc
+## Getting Started
+RMM is available at [`rmm`](https://pypi.org/project/rmm-spoons/) on PyPi. To install, run:
+
+```shell
+pip install rmm-spoons
 ```
-5. Use with `rmm`
+Ensure that SteamCMD is set up and appended to your path. (Required for Linux/Mac only)
 
-## Upgrading on MacOS
-Please perodically update RMM with the following command:
-`pip3 install --upgrade rmm-spoons`
+## Detailed Installation Guide
+### Windows
 
-# Installation for Arch Linux
+1. Fetch and install the most recent Python 3 release from Python's official website. During the installation, make sure to select 'add to PATH'.
+   With administrative rights, launch the Command Prompt and input:
 
-RMM has an AUR package 'rmm'. The package brings in all dependencies, including steamcmd, and can be installed with makepkg and git or an AUR helper as shown below. No other steps are required:
+1. ```shell
+   python -m pip install --user rmm-spoons
+   ```
+1. (Optional) Append C:\Users\[username]\AppData\Roaming\Python\[version]\Scripts\ to your PATH to use with just rmm.
 
-## Makepkg
-``` sh
-mkdir -p ~/build ; cd ~/build
-git clone https://aur.archlinux.org/rmm.git
-cd rmm
-makepkg -si
-```
+### MacOS
 
-## Yay (AUR helper)
-``` sh
-yay -S rmm
-```
+1. Utilize brew to install Python3:
+
+   ```shell
+   brew install python3
+   ```
+2. To install RMM:
+   ```shell
+   pip3 install --user rmm-spoons
+   ```
+3. Add Python's bin directory to your path:
+   ```shell
+    echo "export PATH=\"$PATH:$HOME/Library/Python/$(python3 --version | awk '{split($2,a,".") ; print a[1] "." a[2] }')/bin\"" >> ~/.zshrc
+   ```
+### Arch Linux
+RMM is accessible via the AUR package 'rmm'. 
 
 
-# Installation for other Linux distributions (via PyPi)
+- Using Paru (AUR helper)
+   ```sh
+   yay -S rmm
+   ```
 
-## 1. Installing SteamCMD on Ubuntu
-``` sh
-sudo su -c 'apt update && apt upgrade && apt install software-properties-common && add-apt-repository multiverse && dpkg --add-architecture i386 && apt update && apt install lib32gcc1 steamcmd' ; 
-echo 'export PATH="$PATH:/usr/games' >> ~/.bashrc ;
+## Installation for Other Linux Distributions (via PyPi)
+
+Detailed instructions are provided for Ubuntu and Debian. Kindly consult your distribution's documentation if you use a
+different Linux variant:
+
+### Installing SteamCMD on Ubuntu
+
+```sh
+sudo su -c 'apt update && apt upgrade && apt install software-properties-common && add-apt-repository multiverse && dpkg --add-architecture i386 && apt update && apt install lib32gcc1 steamcmd' 
+echo 'export PATH="$PATH:/usr/games' >> ~/.bashrc
 exec $SHELL
 ```
 
-## 1. Installing SteamCMD on Debian
-``` sh
-sudo su -c 'apt update && apt upgrade && apt install software-properties-common && add-apt-repository non-free && dpkg --add-architecture i386 && apt update && apt install steamcmd' ; 
-echo 'export PATH="$PATH:/usr/games' >> ~/.bashrc ;
+### Installing SteamCMD on Debian
+
+```sh
+sudo su -c 'apt update && apt upgrade && apt install software-properties-common && add-apt-repository non-free && dpkg --add-architecture i386 && apt update && apt install steamcmd'
+echo 'export PATH="$PATH:/usr/games' >> ~/.bashrc
 exec $SHELL
 ```
 
+### Installing RMM via PyPi
 
-## 2. Adding .local/bin to your PATH
-RMM can be directly accessed with command `rmm`. In order for this to work, you need to add `~/.local/bin` to your PATH variable, otherwise, your terminal will not find the `rmm` script. If you notice that you cannot run `rmm` after installation, try the following:
-
-``` sh
-echo 'export PATH="$PATH:$HOME/.local/bin" >> ~/.bashrc ; exec $SHELL
-```
-
-Alternatively, RMM can always called with:
-``` sh
-python -m rmm
-```
-
-## 3. Installing package from PIP
+Install RMM via PyPi:
 ``` sh
 python -m pip install --user rmm-spoons
 ```
 
-## Upgrading with PIP
-Please perodically update RMM with the following command:
-`python -m pip install --user --upgrade rmm-spoons`
-
-# Configuration
-## Set RMM_PATH (Optional)
-If RimWorld is installed a directory other than the default ones, you should set the RMM_PATH variable to your game directory for convenience.
-
-Set it permanently in your `bashrc` or `zshrc` files:
-``` sh
-# Note please update this path to your actual game or mod directory
-echo 'export RMM_PATH="$HOME/your/game/path" >> ~/.bashrc ; 
+If you encounter a unknown command error, add the following to your .bashrc:
+```sh
+echo 'export PATH="$PATH:$HOME/.local/bin" >> ~/.bashrc
 exec $SHELL
 ```
 
-Temporarily set it during your shell session:
-``` sh
+
+## Configuration
+### Setting RMM_PATH (Optional)
+
+If RimWorld isn't in its default directory, it's advisable to set the RMM_PATH environment variable pointing to your
+game directory. This can be achieved in two ways:
+
+**Permanently**: Edit your shell profile (bashrc, zshrc):
+
+```sh
+echo 'export RMM_PATH="$HOME/your/game/path"' >> ~/.bashrc
+exec $SHELL
+```
+
+**Temporarily**: Only for the current shell session:
+
+```sh
 export RMM_PATH="~/PATHTOGAME/game/Mods"
 ```
 
-
-# Installation for Development (Developers)
-Clone repository and install with pip.
-```
-mkdir -p ~/build
-git clone https://github.com/Spoons/rmm.git ~/build/rmm
-pip install --user ~/build/rmm
-```
-
-# Usage
-```
-RimWorld Mod Manager
-
-Usage:
-rmm [options] config
-rmm [options] export [-e]|[-d] <file>
-rmm [options] import <file>
-rmm [options] enable [-a]|[-f file]|<packageid>|<term>
-rmm [options] disable [-a]|[-f file]|<packageid>|<term>
-rmm [options] remove [-a]|[-f file]|<packageid>|<term>
-rmm [options] list
-rmm [options] query [<term>]
-rmm [options] search <term>
-rmm [options] sort
-rmm [options] sync <name>
-rmm [options] update
-rmm [options] verify
-
-rmm -h | --help
-rmm -v | --version
-
-Operations:
-config            Sort and enable/disable mods with ncurses
-export            Save mod list to file.
-import            Install a mod list from a file.
-list              List installed mods.
-query             Search installed mods.
-remove            Remove installed mod.
-search            Search Workshop.
-sort              Auto-sort your modlist
-sync              Install or update a mod.
-update            Update all mods from Steam.
-verify            Checks that enabled mods are compatible
-enable            Enable mods
-disable           Disable mods
-order             Lists mod order
-
-Parameters
-term              Name, author, steamid
-file              File path for a mod list
-name              Name of mod.
-
-Flags
--a                Performs operation on all mods
--d                Export disabled mods to modlist.
--e                Export enabled mods to modlist.
--f                Specify mods in a mod list
-
-Options:
--p --path DIR     RimWorld path.
--w --workshop DIR Workshop Path.
--u --user DIR     User config path.
-
-Environment Variables:
-RMM_PATH          Folder containings Mods
-RMM_WORKSHOP_PATH Folder containing Workshop mods (optional)
-RMM_USER_PATH     Folder containing saves and config
-
-Pathing Preference:
-CLI Argument > Environment Variable > Defaults
-
-Tip:
-You can use enable, disable, and remove with no
-argument to select from all mods.
-```
-
-## How To
+## Usage
 List installed packages:
-``` 
+```  sh
 rmm list
 ```
 
 Search workshop packages:
-``` 
+```  sh
 rmm search term
 ```
 
 Search locally installed mods
-``` 
+```  sh
 rmm query term
 ```
 
 Install package:
-```
+``` sh
 rmm sync rimhud
 ```
 
 Removing a package:
-```
+``` sh
 rmm remove fuzzy
 ```
 
@@ -217,17 +169,17 @@ rmm remove
 ```
 
 Saving a mod list
-```
+``` sh
 rmm export ~/modlist.txt
 ```
 
 Install mod list:
-```
+``` sh
 rmm import ~/modlist.txt
 ```
 
 Update all packages:
-```
+``` sh
 rmm update
 ```
 
@@ -247,21 +199,18 @@ Show mod load order:
 rmm order
 ```
 
-### Tips
-1. Duplicating a mod setup to a new installation:
-``` sh
-rmm -p ~/path-to-game export ~/modlist.txt
-rmm -p ~/path-to-game import ~/modlist.txt
+## Tips
+1. Duplicating Mod Setups: If you're aiming to replicate a mod setup on a fresh installation:
+```sh
+rmm -p ~/path-to-current-game export ~/modlist.txt
+rmm -p ~/path-to-new-game import ~/modlist.txt
 ```
 
-2. It is recommended to auto sort your mods after installation of a mod or modlist.
 
-# Related Projects
-- [rwm](https://github.com/AOx0/rwm): Rust rewrite of RMM.
+## Contributing
 
-# Contributing
-If you would like to contribute your time or efforts towards the project, you are welcome to and your efforts will be appreciated. Please format any code changes through python-black.
+Passionate about RMM and have ideas to contribute? We're all ears! To maintain code quality, we kindly request that any code alterations be formatted using python-black. For more details, check our Contribution Guidelines.
 
-# License
-This project is licensed under the GPLv3 License - see the [LICENSE](LICENSE) file for details
 
+## License
+RMM is open-sourced under the GPLv3 License. Dive into the LICENSE file for thorough details.
