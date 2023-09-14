@@ -8,8 +8,8 @@ from multiprocessing import Pool
 from pathlib import Path
 from typing import Optional, cast
 
-import rmm.util as util
-from rmm.exception import InvalidPackageHash
+import util
+from exception import InvalidPackageHash
 
 DEBUG = False
 
@@ -107,15 +107,24 @@ class Mod:
                     print(e)
                     return False
 
+            # check if "author" is a single string or a list with python xml etree
+            author = util.element_grab("author", root)
+            if not author:
+                author = util.list_grab("author", root)
+
+            if isinstance(author, list):
+                author = ", ".join(author)
+
+            if not author:
+                author = "Unknown"
+
             return Mod(
                 packageid=packageid,
                 before=util.list_grab("loadAfter", root),
                 after=util.list_grab("loadBefore", root),
                 incompatible=util.list_grab("incompatibleWith", root),
                 dirname=path.name,
-                author=util.element_grab("author", root)
-                if util.element_grab("author", root)
-                else ", ".join(util.list_grab("authors", root)),
+                author=author,
                 name=util.element_grab("name", root),
                 versions=util.list_grab("supportedVersions", root),
                 steamid=read_steamid(path),
