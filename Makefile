@@ -28,4 +28,4 @@ install_user:
 
 venv:
 	test -d .venv || python -m venv .venv; \
-	. .venv/bin/activate;
+	source .venv/bin/activate;
