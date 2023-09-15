@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#
+
 from __future__ import annotations
 
 import csv
@@ -9,7 +9,7 @@ from collections.abc import MutableSequence
 from pathlib import Path
 from typing import Any, Generator, Iterator, cast
 
-from rmm.mod import Mod
+from .mod import Mod
 
 
 class ModListSerializer(ABC):

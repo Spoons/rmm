@@ -12,8 +12,8 @@ from typing import List, Tuple
 
 from bs4 import BeautifulSoup
 
-import rmm.util as util
-from rmm.mod import Mod, ModFolder
+from . import util
+from .mod import Mod, ModFolder
 
 STEAMCMD_WINDOWS_URL = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip"
 
@@ -68,14 +68,14 @@ class SteamDownloader:
             raise Exception("Error could not get temporary directory")
 
         if util.platform() == "win32":
-            mod_path = home_path / "steamapps/workshop/content/294100/"
+            mod_path = home_path / "SteamApps/workshop/content/294100/"
         elif util.platform() == "darwin":
             mod_path = (
                 home_path
-                / "Library/Application Support/Steam/steamapps/workshop/content/294100/"
+                / "Library/Application Support/Steam/SteamApps/workshop/content/294100/"
             )
         else:
-            mod_path = home_path / ".steam/steamapps/workshop/content/294100/"
+            mod_path = home_path / ".steam/SteamApps/workshop/content/294100/"
         return (home_path, mod_path)
 
     @staticmethod

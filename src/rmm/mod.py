@@ -2,139 +2,51 @@
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+
+from dataclasses import dataclass, field
 from multiprocessing import Pool
 from pathlib import Path
-from typing import Optional, cast
+from typing import Optional, List, Union, cast
 
-import rmm.util as util
-from rmm.exception import InvalidPackageHash
+import xml.etree.ElementTree as ET
+
+from . import util
 
 DEBUG = False
 
 
 @dataclass
 class Mod:
-    def __init__(
-        self,
-        packageid: Optional[str] = None,
-        before: Optional[list[str]] = None,
-        after: Optional[list[str]] = None,
-        incompatible: Optional[list[str]] = None,
-        dirname: Optional[Path] = None,
-        author: Optional[str] = None,
-        name: Optional[str] = None,
-        versions: Optional[list[str]] = None,
-        steamid: Optional[int] = None,
-        ignored: bool = False,
-        repo_url: Optional[str] = None,
-        workshop_managed: Optional[bool] = None,
-        enabled: Optional[bool] = None,
-    ):
-        if packageid and isinstance(packageid, str):
-            self.packageid = packageid.lower()
-        else:
-            self.packageid = packageid
-        self.before = Mod.lowercase_set(before)
-        self.after = Mod.lowercase_set(after)
-        self.incompatible = incompatible
-        self.dirname = dirname
-        self.author = author
-        self.name = name
-        self.ignored = ignored
-        self.steamid = steamid
-        self.versions = versions
-        self.repo_url = repo_url
-        self.workshop_managed = workshop_managed
-        self.enabled = enabled
+    packageid: Optional[str] = field(default_factory=str)
+    before: List[str] = field(default_factory=list)
+    after: List[str] = field(default_factory=list)
+    incompatible: List[str] = field(default_factory=list)
+    dirname: Optional[Path] = None
+    author: str = "Unknown"
+    name: Optional[str] = None
+    versions: List[str] = field(default_factory=list)
+    steamid: Optional[int] = None
+    ignored: bool = False
+    repo_url: Optional[str] = None
+    workshop_managed: Optional[bool] = None
+    enabled: Optional[bool] = None
 
-    def title(self):
-        return self.packageid if self.packageid else f"{self.name} by {self.author}"
+    def title(self) -> str:
+        return self.packageid or f"{self.name} by {self.author}"
 
-    @staticmethod
-    def lowercase_set(data):
-        retval = set()
-        try:
-            for n in data:
-                try:
-                    retval.add(n.lower())
-                except AttributeError:
-                    continue
-        except TypeError:
-            return None
-        return retval
+    def __post_init__(self):
+        if self.packageid:
+            self.packageid = self.packageid.lower()
+        if self.before:
+            self.before = [item.lower() for item in self.before]
+        if self.after:
+            self.after = [item.lower() for item in self.after]
 
-    @staticmethod
-    def create_from_workshorp_result(wr: WorkshopResult):
-        return Mod(steamid=wr.steamid, name=wr.name, author=wr.author)
-
-    @staticmethod
-    def create_from_path(path) -> Optional[Mod]:
-        try:
-            tree = ET.parse(path / "About/About.xml")
-            root = tree.getroot()
-            try:
-                packageid = cast(str, cast(ET.Element, root.find("packageId")).text)
-            except AttributeError as e:
-                name = util.element_grab("name", root)
-                author = util.element_grab("author", root)
-                if name and author:
-                    packageid = "{}.{}".format(name.lower(), author.lower())
-                else:
-                    if DEBUG:
-                        raise e
-                    return None
-
-            def read_steamid(path: Path) -> Optional[int]:
-                try:
-                    return int(
-                        (path / "About" / "PublishedFileId.txt")
-                        .read_text()
-                        .strip()
-                        .encode("ascii", errors="ignore")
-                        .decode()
-                    )
-                except (OSError, ValueError, IOError) as e:
-                    if DEBUG:
-                        print(e)
-                    return None
-
-            def read_ignored(path: Path):
-                try:
-                    return (path / ".rmm_ignore").is_file()
-                except OSError as e:
-                    print(e)
-                    return False
-
-            return Mod(
-                packageid=packageid,
-                before=util.list_grab("loadAfter", root),
-                after=util.list_grab("loadBefore", root),
-                incompatible=util.list_grab("incompatibleWith", root),
-                dirname=path.name,
-                author=util.element_grab("author", root)
-                if util.element_grab("author", root)
-                else ", ".join(util.list_grab("authors", root)),
-                name=util.element_grab("name", root),
-                versions=util.list_grab("supportedVersions", root),
-                steamid=read_steamid(path),
-                ignored=read_ignored(path),
-            )
-
-        except OSError:
-            # if not "Place mods here" in path.name:
-            print(f"Ignoring {path}")
-            # raise e
-        except ET.ParseError as e:
-            print(f"Ignoring {path}.\n\t{path}/About/About.xml contains invalid XML.")
-
-    def __eq__(self, other):
+    def __eq__(self, other: Union["Mod", str, int]):
         if isinstance(other, Mod):
-            if self.packageid and other.packageid:
-                return self.packageid == other.packageid
-            if self.steamid and other.steamid:
-                return self.steamid == other.steamid
+            return (self.packageid and self.packageid == other.packageid) or (
+                self.steamid and self.steamid == other.steamid
+            )
         if isinstance(other, str) and self.packageid:
             return self.packageid.lower() == other.lower()
         if isinstance(other, int) and self.steamid:
@@ -143,24 +55,93 @@ class Mod:
 
     def __hash__(self):
         if not self.packageid:
-            raise InvalidPackageHash()
+            raise ValueError("InvalidPackageHash")
         return hash(self.packageid)
 
-    def __repr__(self):
-        return self.__str__()
-
-    def __str__(self):
-        return f"<Mod: '{self.packageid}'>"
+    @staticmethod
+    def create_from_workshop_result(wr: "WorkshopResult") -> "Mod":
+        return Mod(steamid=wr.steamid, name=wr.name, author=wr.author)
 
     @staticmethod
-    def list_to_dict(mods: list[Mod]):
-        hm = dict()
-        for n in mods:
-            if not n.packageid:
-                raise Exception("No package id in hashmap")
-            hm[n.packageid] = n
+    def list_to_dict(mods: List["Mod"]) -> dict:
+        return {mod.packageid: mod for mod in mods if mod.packageid}
 
-        return hm
+    @staticmethod
+    def create_from_path(path) -> Optional[Mod]:
+        def find_about_xml(path: Path) -> Optional[Path]:
+            # Use glob to get the case-insensitive About.xml path
+            matches = list(path.glob("About/[Aa][Bb][Oo][Uu][Tt].[Xx][Mm][Ll]"))
+            return matches[0] if matches else None
+
+        def parse_tree(file_path: Path) -> ET.ElementTree:
+            return ET.parse(file_path)
+
+        def extract_packageid(root: ET.Element) -> Optional[str]:
+            try:
+                return cast(str, cast(ET.Element, root.find("packageId")).text).lower()
+            except AttributeError:
+                name = util.element_grab("name", root)
+                author = util.element_grab("author", root)
+                if name and author:
+                    return "{}.{}".format(name.lower(), author.lower())
+            if DEBUG:
+                raise AttributeError("Could not find or infer package ID")
+            return None
+
+        def read_steamid(path: Path) -> Optional[int]:
+            try:
+                file_content = (
+                    (path / "About" / "PublishedFileId.txt").read_text().strip()
+                )
+                return int(file_content.encode("ascii", errors="ignore").decode())
+            except (OSError, ValueError, IOError):
+                if DEBUG:
+                    print(f"Error reading steamid from {path}")
+                return None
+
+        def read_ignored(path: Path) -> bool:
+            try:
+                return (path / ".rmm_ignore").is_file()
+            except OSError as e:
+                print(e)
+                return False
+
+        try:
+            about_xml_path = find_about_xml(path)
+            if not about_xml_path:
+                print(f"No About.xml found in {path}")
+                return None
+
+            tree_root = parse_tree(about_xml_path)
+            package_id = extract_packageid(tree_root)
+            if not package_id:
+                return None
+
+            author = util.element_grab("author", tree_root)
+            if not author:
+                author = util.list_grab("author", tree_root)
+            if isinstance(author, list):
+                author = ", ".join(author)
+            if not author:
+                author = "Unknown"
+
+            return Mod(
+                packageid=package_id,
+                before=util.list_grab("loadAfter", tree_root),
+                after=util.list_grab("loadBefore", tree_root),
+                incompatible=util.list_grab("incompatibleWith", tree_root),
+                dirname=path.name,
+                author=author,
+                name=util.element_grab("name", tree_root),
+                versions=util.list_grab("supportedVersions", tree_root),
+                steamid=read_steamid(path),
+                ignored=read_ignored(path),
+            )
+
+        except OSError:
+            print(f"Ignoring {path}")
+        except ET.ParseError:
+            print(f"Ignoring {path}.\n\t{about_xml_path} contains invalid XML.")
 
 
 class ModFolder:
