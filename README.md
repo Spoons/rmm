@@ -1,11 +1,12 @@
 # RMM: RimWorld Mod Manager
 
 
-[![RMM](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/rmm-spoons/main/assets/badge/v2.json)](https://github.com/spoons/rmm)
+[//]: # ([![RMM]&#40;https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/rmm-spoons/main/assets/badge/v2.json&#41;]&#40;https://github.com/spoons/rmm&#41;)
 [![image](https://img.shields.io/pypi/v/rmm-spoons.svg)](https://pypi.python.org/pypi/rmm-spoons)
 [![image](https://img.shields.io/pypi/l/rmm-spoons.svg)](https://pypi.python.org/pypi/rmm-spoons)
 [![image](https://img.shields.io/pypi/pyversions/rmm-spoons.svg)](https://pypi.python.org/pypi/rmm-spoons)
-[![Actions status](https://github.com/spoons/rmm/workflows/CI/badge.svg)](https://github.com/spoons/rmm/actions)
+
+[//]: # ([![Actions status]&#40;https://github.com/spoons/rmm/workflows/CI/badge.svg&#41;]&#40;https://github.com/spoons/rmm/actions&#41;)
 
 A mod manager for RimWorld.
 
@@ -74,7 +75,7 @@ Ensure that SteamCMD is set up and appended to your path. (Required for Linux/Ma
     echo "export PATH=\"$PATH:$HOME/Library/Python/$(python3 --version | awk '{split($2,a,".") ; print a[1] "." a[2] }')/bin\"" >> ~/.zshrc
    ```
 ### Arch Linux
-RMM is accessible via the AUR package 'rmm'. 
+RMM is accessible via the AUR package 'rmm'.
 
 
 - Using Paru (AUR helper)
@@ -90,7 +91,7 @@ different Linux variant:
 ### Installing SteamCMD on Ubuntu
 
 ```sh
-sudo su -c 'apt update && apt upgrade && apt install software-properties-common && add-apt-repository multiverse && dpkg --add-architecture i386 && apt update && apt install lib32gcc1 steamcmd' 
+sudo su -c 'apt update && apt upgrade && apt install software-properties-common && add-apt-repository multiverse && dpkg --add-architecture i386 && apt update && apt install lib32gcc1 steamcmd'
 echo 'export PATH="$PATH:/usr/games' >> ~/.bashrc
 exec $SHELL
 ```
@@ -232,7 +233,7 @@ rmm remove fuzzy
 Removing all / a range packages:
 
 ``` sh
-rmm remove 
+rmm remove
 # all packages will be listed. specify your desired range at the interactive prompt.
 ```
 
