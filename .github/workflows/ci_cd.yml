@@ -1,0 +1,122 @@
+name: Continuous Integration and Continuous Delivery
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "The branch, tag or SHA to release from"
+        required: true
+        default: "master"
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - "master"
+
+jobs:
+  ci:
+    name: Integration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.inputs.branch }}
+
+      - name: Install Python
+        uses: actions/setup-python@v4
+
+      - name: Install poetry
+        run: pip install -U poetry
+
+      - name: Check pyproject.toml validity
+        run: poetry check --no-interaction
+
+      - name: Cache dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/pypoetry
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Lint with Ruff
+        run: poetry run ruff check rmm || true
+
+      - name: Test with Pytest
+        run: poetry run pytest || true
+
+      - name: Build package
+        run: poetry build
+
+      - name: Upload artifaction
+        uses: actions/upload-artifact@v2
+        with:
+          name: dist
+          path: dist
+        if: github.ref == 'refs/heads/master' && ( github.event_name == 'push' || github.event_name == 'workflow_dispatch' )
+
+  cd:
+    needs: ci
+    name: Delivery
+    if:  github.ref == 'refs/heads/master' && ( github.event_name == 'push' || github.event_name == 'workflow_dispatch' )
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.inputs.branch }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+
+      - name: Install poetry
+        run: pip install -U poetry
+
+      - name: Cache dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/pypoetry
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Semantic release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          poetry run semantic-release --noop version
+
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: dist
+          path: dist
+
+#      - name: Add test pypi repository
+#        run: poetry config repositories.test-pypi https://test.pypi.org/legacy/
+
+#      - name: Add testpypi token
+#        run: poetry config pypi-token.test-pypi ${{ secrets.PYPI_TEST_TOKEN }}
+#
+#      - name: Publish package to test PyPi
+#        run: poetry publish -r test-pypi
+
+      - name: Add PyPi token
+        run: poetry config pypi-token.pypi ${{ secrets.PYPI_TOKEN }}
+
+      - name: Publish package to PyPi
+        run: poetry publish

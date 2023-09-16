@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "rmm-spoons"
-version = "0.0.1"
+version = "1.1.0"
 description = "A RimWorld Mod Manager"
 authors = ["Michael Ciociola <michael@ciocio.la>"]
 license = "GPLv3"
@@ -19,7 +19,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">3.8"
+python = ">3.8,<4.0"
 beautifulsoup4 = "^4.12.2"
 tabulate = "^0.9.0"
 networkx = "^3.1"
@@ -33,6 +33,7 @@ coverage = "^7.3.1"
 pytest-cov = "^4.1.0"
 bandit = "^1.7.5"
 safety = "^2.3.5"
+python-semantic-release = "^8.0.8"
 
 [tool.poetry.scripts]
 rmm = "rmm.cli:run"
@@ -41,3 +42,13 @@ rmm = "rmm.cli:run"
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.semantic_release]
+version_toml = [
+    "pyproject.toml:tool.poetry.version",
+]
+upload_to_pypi = false
+commit_message = "Release {version}\n\nSee [CHANGELOG.md](./CHANGELOG.md) or [GitHub releases](https://github.com/spoons/rmm/releases) for more details."
+
+#[tool.semantic_release.branches.refactor]
+#match="refactor"
+#prerelease=false
