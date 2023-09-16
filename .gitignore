@@ -1,56 +1,76 @@
 # Byte-compiled / optimized / DLL files
-__pycache__/
 *.py[cod]
-*$py.class
-
-# C extensions
+__pycache__/
 *.so
 
 # Distribution / packaging
-.Python
-build/
-develop-eggs/
+*.egg
+*.egg-info/
 dist/
-downloads/
+build/
 eggs/
-.eggs/
-lib/
-lib64/
 parts/
-sdist/
+bin/
 var/
-wheels/
-share/python-wheels/
+sdist/
+develop-eggs/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
+# PyInstaller
+*.manifest
+*.spec
 
 # Unit test / coverage reports
 htmlcov/
-.tox/
-.nox/
 .coverage
 .coverage.*
-.cache
-nosetests.xml
-coverage.xml
 *.cover
-*.py,cover
-.hypothesis/
+*.nupkg
+
+# Directories
+.eggs/
+.mypy_cache/
 .pytest_cache/
-cover/
+__pypackages__/
+
+# Logs
+*.log
+
+# Environment variables
+.env
 
 # Environments
-.env
-.venv
+.venv/
+venv/
+venv.bak/
+ENV/
 
-*~
-
-lists/*
-qodana.yml
+# IDEs and editors
+*.swp
+*.swo
+*.swn
+.DS_Store
 .idea/
+.vscode/
+*.sage.py
+*.ropeproject
+.ipynb_checkpoints
+
+# Various configurations and caches
+*.pyre/
+*.tox/
+*.nox/
+.cache/
+*.pot
+*.mo
+.Python
+
+# Misc
+*.spec
+profile_default/
+pip-log.txt
+pip-delete-this-directory.txt
+local_settings.py

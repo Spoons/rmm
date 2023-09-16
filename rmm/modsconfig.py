@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, cast
 from xml.etree import ElementTree as ET
@@ -110,9 +109,8 @@ class ModsConfig:
             # import rmm.steam
             # rules_cache_path = Path(SteamDownloader.find_path()[1]/ "1847679158")
             # rmm.steam.SteamDownloader.download([1847679158])
-            import rmm.manager
 
-            rmm.manager.Manager(config).sync_mods([Mod(steamid=1847679158)])
+            manager.Manager(config).sync_mods([Mod(steamid=1847679158)])
 
         with (
             config.mod_path / "rupal.rimpymodmanagerdatabase/db/communityRules.json"

@@ -1,6 +1,43 @@
-[build-system]
-requires = [
-    "setuptools>=42",
-    "wheel",
+[tool.poetry]
+name = "rmm-spoons"
+version = "0.0.1"
+description = "A RimWorld Mod Manager"
+authors = ["Michael Ciociola <michael@ciocio.la>"]
+license = "GPLv3"
+readme = "README.md"
+homepage = "https://github.com/spoons/rmm"
+repository = "https://github.com/spoons/rmm"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Operating System :: OS Independent",
+    "Topic :: System :: Archiving :: Packaging",
+    "Topic :: Games/Entertainment"
 ]
-build-backend = "setuptools.build_meta"
+packages = [
+    { "include" = "rmm" }
+]
+
+[tool.poetry.dependencies]
+python = ">3.8"
+beautifulsoup4 = "^4.12.2"
+tabulate = "^0.9.0"
+networkx = "^3.1"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.9.1"
+pytest = "^7.4.2"
+ruff = "^0.0.290"
+mypy = "^1.5.1"
+coverage = "^7.3.1"
+pytest-cov = "^4.1.0"
+bandit = "^1.7.5"
+safety = "^2.3.5"
+
+[tool.poetry.scripts]
+rmm = "rmm.cli:run"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
