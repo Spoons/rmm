@@ -9,13 +9,13 @@ from collections.abc import MutableSequence
 from pathlib import Path
 from typing import Any, Generator, Iterator, cast
 
-from rmm.Mod.mod import Mod
+from rmm.Mod.modaboutxml import ModAboutXML
 
 
 class ModListSerializer(ABC):
     @classmethod
     @abstractmethod
-    def parse(cls, text: str) -> Generator[Mod, None, None]:
+    def parse(cls, text: str) -> Generator[ModAboutXML, None, None]:
         pass
 
     @classmethod
@@ -43,11 +43,11 @@ class ModListV2Format(ModListSerializer):
     MAGIC_FLAG = "RMM_V2_MODLIST"
 
     @classmethod
-    def parse(cls, text: str) -> Generator[Mod, None, None]:
+    def parse(cls, text: str) -> Generator[ModAboutXML, None, None]:
         reader = csv.reader(text.split("\n"))
         for parsed in reader:
             try:
-                yield Mod(
+                yield ModAboutXML(
                     package_id=parsed[cls.HEADER["PACKAGE_ID"]],
                     steam_id=int(parsed[cls.HEADER["STEAM_ID"]]),
                     repo_url=parsed[cls.HEADER["REPO_URL"]] if not "" else None,
@@ -57,7 +57,7 @@ class ModListV2Format(ModListSerializer):
                     print("Unable to import: ", parsed)
                 continue
             except ValueError:
-                yield Mod(
+                yield ModAboutXML(
                     package_id=parsed[cls.HEADER["PACKAGE_ID"]],
                     repo_url=parsed[cls.HEADER["REPO_URL"]] if not "" else None,
                 )
@@ -72,7 +72,7 @@ class ModListV2Format(ModListSerializer):
             yield buffer.pop().strip()
 
     @classmethod
-    def format(cls, mod: Mod) -> list[str]:
+    def format(cls, mod: ModAboutXML) -> list[str]:
         return cast(
             list[str],
             [
@@ -87,7 +87,7 @@ class ModListV1Format(ModListSerializer):
     STEAM_ID = 0
 
     @classmethod
-    def parse(cls, text: str) -> Generator[Mod, None, None]:
+    def parse(cls, text: str) -> Generator[ModAboutXML, None, None]:
         name_exp = re.compile("(.*) by (.*)")
         for line in text.split("\n"):
             parsed = line.split("#", 1)
@@ -99,7 +99,7 @@ class ModListV1Format(ModListSerializer):
                     name = matches[0][0]
                     author = matches[0][1]
             try:
-                yield Mod(
+                yield ModAboutXML(
                     steam_id=int(
                         parsed[cls.STEAM_ID]
                         .strip()
@@ -120,13 +120,13 @@ class ModListV1Format(ModListSerializer):
             yield cls.format(m)
 
     @classmethod
-    def format(cls, mod: Mod) -> str:
+    def format(cls, mod: ModAboutXML) -> str:
         return "{}# {} by {} ".format(str(mod.steam_id), mod.name, mod.author)
 
 
 class ModListFile:
     @staticmethod
-    def read(path: Path) -> list[Mod]:
+    def read(path: Path) -> list[ModAboutXML]:
         try:
             with path.open("r") as f:
                 text = f.read()

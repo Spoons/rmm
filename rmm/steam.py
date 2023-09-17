@@ -13,7 +13,7 @@ from typing import List, Tuple
 from bs4 import BeautifulSoup
 
 from . import util
-from rmm.Mod.mod import Mod, ModFolder
+from rmm.Mod.modaboutxml import ModAboutXML, ModFolder
 
 STEAMCMD_WINDOWS_URL = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip"
 
@@ -79,7 +79,7 @@ class SteamDownloader:
         return (home_path, mod_path)
 
     @staticmethod
-    def download(mods: List[int]) -> Tuple[List[Mod], Path]:
+    def download(mods: List[int]) -> Tuple[List[ModAboutXML], Path]:
         home_path, mod_path = SteamDownloader.find_path()
 
         if not home_path:

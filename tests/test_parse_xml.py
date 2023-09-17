@@ -86,3 +86,14 @@ def test_parse_xml(rimhud_about_xml_file):
 
 def test_read_mod_fail(rimhud_about_xml_file):
     assert read_mod(Path("/fakepath")).is_error() == True
+
+
+def test_mod_dependencies(rimhud_about_xml_file):
+    deps = parse_xml(rimhud_about_xml_file).dependencies
+    assert deps[0].package_id == "brrainz.harmony"
+    assert deps[0].name == "Harmony"
+    assert deps[0].workshop_url == "steam://url/CommunityFilePage/2009463077"
+    assert (
+        deps[0].download_url
+        == "https://github.com/pardeike/HarmonyRimWorld/releases/latest"
+    )

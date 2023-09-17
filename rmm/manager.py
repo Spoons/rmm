@@ -5,7 +5,7 @@ from typing import List, Union
 
 from . import util
 from .config import Config
-from rmm.Mod.mod import EXPANSION_PACKAGES, Mod, ModFolder
+from rmm.Mod.modaboutxml import EXPANSION_PACKAGES, ModAboutXML, ModFolder
 from .modsconfig import ModsConfig
 from .steam import SteamDownloader, WorkshopResult
 
@@ -21,7 +21,7 @@ class Manager:
     def install_mod(self, steam_cache: Path, steamid: int):
         if not steamid:
             raise Exception("Missing SteamID")
-        mod = Mod.create_from_path(steam_cache / str(steamid))
+        mod = ModAboutXML.create_from_path(steam_cache / str(steamid))
 
         dest_path = None
         if self.config.USE_HUMAN_NAMES and mod and mod.package_id:
@@ -40,7 +40,7 @@ class Manager:
             return False
         return True
 
-    def remove_mod(self, mod: Mod):
+    def remove_mod(self, mod: ModAboutXML):
         if not self.config.mod_path:
             raise Exception("Game path not defined")
 
@@ -61,13 +61,13 @@ class Manager:
             if self.config.USE_HUMAN_NAMES and m.package_id and pid_path.exists():
                 util.remove(pid_path)
 
-    def remove_mods(self, queue: List[Mod]):
+    def remove_mods(self, queue: List[ModAboutXML]):
         for mod in queue:
             if isinstance(mod, WorkshopResult):
-                mod = Mod.create_from_workshorp_result(mod)
+                mod = ModAboutXML.create_from_workshorp_result(mod)
             self.remove_mod(mod)
 
-    def sync_mods(self, queue: Union[List[Mod], List[WorkshopResult]]):
+    def sync_mods(self, queue: Union[List[ModAboutXML], List[WorkshopResult]]):
         steam_mods, steam_cache_path = SteamDownloader.download(
             [mod.steam_id for mod in queue if mod.steam_id]
         )
@@ -78,7 +78,7 @@ class Manager:
                 if len(new_mod) == 1:
                     mod = new_mod[0]
                 else:
-                    mod = Mod(steam_id=mod.steamid)
+                    mod = ModAboutXML(steam_id=mod.steamid)
             if not isinstance(mod.steam_id, int):
                 continue
             success = False
@@ -135,9 +135,9 @@ class Manager:
         installed_mods = self.installed_mods()
         return util.list_loop_exclusion(installed_mods, enabled_mods)
 
-    def _enable_mod(self, mod: Union[str, Mod]):
+    def _enable_mod(self, mod: Union[str, ModAboutXML]):
         if isinstance(mod, str):
-            mod = Mod(package_id=mod)
+            mod = ModAboutXML(package_id=mod)
         if not mod.package_id:
             raise Exception("No package id for specifed mod")
         self.modsconfig.enable_mod(mod)
@@ -149,9 +149,9 @@ class Manager:
         print("Updating ModsConfig.xml")
         self.modsconfig.write()
 
-    def _disable_mod(self, mod: Union[str, Mod]):
+    def _disable_mod(self, mod: Union[str, ModAboutXML]):
         if isinstance(mod, str):
-            mod = Mod(package_id=mod)
+            mod = ModAboutXML(package_id=mod)
         if not mod.package_id:
             raise Exception("No package id for specifed mod")
         self.modsconfig.disable_mod(mod)

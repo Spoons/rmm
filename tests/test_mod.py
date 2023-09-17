@@ -1,11 +1,18 @@
-from rmm.Mod import Mod
+from rmm.Mod import ModAboutXML
 import pytest
 
 
 @pytest.fixture()
 def mod():
-    return Mod(
-        "package_id", ["before"], ["after"], "author", "name", ["supported_versions"]
+    return ModAboutXML(
+        "package_id",
+        ["before"],
+        ["after"],
+        ["incompatible"],
+        "author",
+        "name",
+        ["supported_versions"],
+        [],
     )
 
 
@@ -25,6 +32,7 @@ def test_mod_required(mod):
     assert mod.package_id == "package_id"
     assert mod.before == ["before"]
     assert mod.after == ["after"]
+    assert mod.incompatible == ["incompatible"]
     assert mod.author == "author"
     assert mod.name == "name"
     assert mod.supported_versions == ["supported_versions"]

@@ -1,1 +1,1 @@
-from .mod import Mod
+from .modaboutxml import ModAboutXML

@@ -13,7 +13,7 @@ from . import util
 from .config import Config
 from .exception import InvalidSelectionException
 from .manager import Manager
-from rmm.Mod.mod import Mod
+from rmm.Mod.modaboutxml import ModAboutXML
 from .modlist import ModListFile, ModListV2Format
 from .path import PathFinder
 from .steam import WorkshopResult, WorkshopWebScraper
@@ -119,7 +119,7 @@ def _interactive_query(manager: Manager, term: str, verb: str):
         return None
 
 
-def _interactive_verify(mods: list[Mod], verb: str):
+def _interactive_verify(mods: list[ModAboutXML], verb: str):
     for m in mods:
         print(m.title())
 
@@ -186,7 +186,7 @@ def tabulate_mod_or_wr(
     if isinstance(mods, dict):
         mods = [n for _, n in mods.items()]
 
-    if isinstance(mods[0], Mod):
+    if isinstance(mods[0], ModAboutXML):
         headers = ["package", "name", "author", "enabled"]
         mod_list = [[n.package_id, n.name, n.author[:20], n.enabled] for n in mods]
     elif isinstance(mods[0], WorkshopResult) or light:

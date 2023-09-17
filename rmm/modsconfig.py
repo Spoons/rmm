@@ -5,7 +5,7 @@ from typing import List, cast
 from xml.etree import ElementTree as ET
 
 from . import util
-from rmm.Mod.mod import EXPANSION_PACKAGES, Mod
+from rmm.Mod.modaboutxml import EXPANSION_PACKAGES, ModAboutXML
 
 
 class ModsConfig:
@@ -67,10 +67,10 @@ class ModsConfig:
             print("Unable to write ModsConfig")
             raise
 
-    def enable_mod(self, m: Mod):
+    def enable_mod(self, m: ModAboutXML):
         self.mods[m.package_id] = None
 
-    def disable_mod(self, m: Mod):
+    def disable_mod(self, m: ModAboutXML):
         if m.package_id in self.mods:
             del self.mods[m.package_id]
 
@@ -110,7 +110,7 @@ class ModsConfig:
             # rules_cache_path = Path(SteamDownloader.find_path()[1]/ "1847679158")
             # rmm.steam.SteamDownloader.download([1847679158])
 
-            manager.Manager(config).sync_mods([Mod(steam_id=1847679158)])
+            manager.Manager(config).sync_mods([ModAboutXML(steam_id=1847679158)])
 
         with (
             config.mod_path / "rupal.rimpymodmanagerdatabase/db/communityRules.json"
@@ -192,9 +192,11 @@ class ModsConfig:
                 DG.remove_edge(*cycle[0])
                 count += 1
 
-    def verify_state(self, mods: List[Mod]):
+    def verify_state(self, mods: List[ModAboutXML]):
         if isinstance(mods, list):
-            populated_mods = {m.package_id: m for m in mods if m.package_id in self.mods}
+            populated_mods = {
+                m.package_id: m for m in mods if m.package_id in self.mods
+            }
         elif isinstance(mods, dict):
             populated_mods = {
                 m.package_id: m for m in mods.values() if m.package_id in self.mods

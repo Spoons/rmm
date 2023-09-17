@@ -1,4 +1,4 @@
-from rmm.Mod.mod import Mod
+from rmm.Mod.modaboutxml import ModAboutXML, ModDep
 from pathlib import Path
 import typing as t
 import xml.etree.ElementTree as Et
@@ -41,6 +41,25 @@ def parse_xml_list(root: Et.ElementTree, field, required=True):
     return handle_error(field, get_xml_list(root, field), required)
 
 
+def parse_xml_dependency(element: Et.Element):
+    package_id = parse_xml_field(element, "packageId").unwrap()
+    display_name = parse_xml_field(element, "displayName").unwrap()
+    steam_workshop_url = parse_xml_field(element, "steamWorkshopUrl").unwrap()
+    download_url = parse_xml_field(element, "downloadUrl").unwrap()
+    return ModDep(package_id, display_name, steam_workshop_url, download_url)
+
+
+def parse_mod_dependencies(root: Et.ElementTree):
+    result = root.find("modDependencies")
+    if not result:
+        return Ok([])
+
+    deps = []
+    for element in result:
+        deps.append(parse_xml_dependency(element))
+    return Ok(deps)
+
+
 def parse_xml(path: Path):
     try:
         tree = Et.parse(path)
@@ -50,12 +69,22 @@ def parse_xml(path: Path):
     package_id = parse_xml_field(tree, "packageId").unwrap()
     before = parse_xml_list(tree, "loadBefore", required=False).unwrap()
     after = parse_xml_list(tree, "loadAfter", required=False).unwrap()
+    incompatible = parse_xml_list(tree, "incompatibleWith", required=False).unwrap()
     author = parse_xml_field(tree, "author").unwrap_or("Unknown")
     name = parse_xml_field(tree, "name").unwrap()
-
     supported_versions = parse_xml_list(tree, "supportedVersions").unwrap()
+    dependencies = parse_mod_dependencies(tree).unwrap()
 
-    return Mod(package_id, before, after, author, name, supported_versions)
+    return ModAboutXML(
+        package_id,
+        before,
+        after,
+        incompatible,
+        author,
+        name,
+        supported_versions,
+        dependencies,
+    )
 
 
 def read_mod(path: Path):
