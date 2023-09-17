@@ -9,7 +9,7 @@ from collections.abc import MutableSequence
 from pathlib import Path
 from typing import Any, Generator, Iterator, cast
 
-from .mod import Mod
+from rmm.Mod.mod import Mod
 
 
 class ModListSerializer(ABC):
@@ -48,8 +48,8 @@ class ModListV2Format(ModListSerializer):
         for parsed in reader:
             try:
                 yield Mod(
-                    packageid=parsed[cls.HEADER["PACKAGE_ID"]],
-                    steamid=int(parsed[cls.HEADER["STEAM_ID"]]),
+                    package_id=parsed[cls.HEADER["PACKAGE_ID"]],
+                    steam_id=int(parsed[cls.HEADER["STEAM_ID"]]),
                     repo_url=parsed[cls.HEADER["REPO_URL"]] if not "" else None,
                 )
             except IndexError:
@@ -58,7 +58,7 @@ class ModListV2Format(ModListSerializer):
                 continue
             except ValueError:
                 yield Mod(
-                    packageid=parsed[cls.HEADER["PACKAGE_ID"]],
+                    package_id=parsed[cls.HEADER["PACKAGE_ID"]],
                     repo_url=parsed[cls.HEADER["REPO_URL"]] if not "" else None,
                 )
                 continue
@@ -76,8 +76,8 @@ class ModListV2Format(ModListSerializer):
         return cast(
             list[str],
             [
-                mod.packageid,
-                str(mod.steamid) if not None else "",
+                mod.package_id,
+                str(mod.steam_id) if not None else "",
                 mod.repo_url if not None else "",
             ],
         )
@@ -100,7 +100,7 @@ class ModListV1Format(ModListSerializer):
                     author = matches[0][1]
             try:
                 yield Mod(
-                    steamid=int(
+                    steam_id=int(
                         parsed[cls.STEAM_ID]
                         .strip()
                         .encode("ascii", errors="ignore")
@@ -121,7 +121,7 @@ class ModListV1Format(ModListSerializer):
 
     @classmethod
     def format(cls, mod: Mod) -> str:
-        return "{}# {} by {} ".format(str(mod.steamid), mod.name, mod.author)
+        return "{}# {} by {} ".format(str(mod.steam_id), mod.name, mod.author)
 
 
 class ModListFile:

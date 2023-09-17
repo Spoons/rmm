@@ -5,7 +5,7 @@ from typing import List, Union
 
 from . import util
 from .config import Config
-from .mod import EXPANSION_PACKAGES, Mod, ModFolder
+from rmm.Mod.mod import EXPANSION_PACKAGES, Mod, ModFolder
 from .modsconfig import ModsConfig
 from .steam import SteamDownloader, WorkshopResult
 
@@ -24,8 +24,8 @@ class Manager:
         mod = Mod.create_from_path(steam_cache / str(steamid))
 
         dest_path = None
-        if self.config.USE_HUMAN_NAMES and mod and mod.packageid:
-            dest_path = self.config.mod_path / mod.packageid
+        if self.config.USE_HUMAN_NAMES and mod and mod.package_id:
+            dest_path = self.config.mod_path / mod.package_id
         else:
             dest_path = self.config.mod_path / str(steamid)
 
@@ -53,12 +53,12 @@ class Manager:
             if mod_absolute_path:
                 util.remove(mod_absolute_path)
 
-            steamid_path = self.config.mod_path / str(m.steamid)
-            if m.steamid and steamid_path.exists():
-                util.remove(self.config.mod_path / str(m.steamid))
+            steamid_path = self.config.mod_path / str(m.steam_id)
+            if m.steam_id and steamid_path.exists():
+                util.remove(self.config.mod_path / str(m.steam_id))
 
-            pid_path = self.config.mod_path / m.packageid
-            if self.config.USE_HUMAN_NAMES and m.packageid and pid_path.exists():
+            pid_path = self.config.mod_path / m.package_id
+            if self.config.USE_HUMAN_NAMES and m.package_id and pid_path.exists():
                 util.remove(pid_path)
 
     def remove_mods(self, queue: List[Mod]):
@@ -69,22 +69,22 @@ class Manager:
 
     def sync_mods(self, queue: Union[List[Mod], List[WorkshopResult]]):
         steam_mods, steam_cache_path = SteamDownloader.download(
-            [mod.steamid for mod in queue if mod.steamid]
+            [mod.steam_id for mod in queue if mod.steam_id]
         )
 
         for mod in queue:
             if isinstance(mod, WorkshopResult):
-                new_mod = [m for m in steam_mods if m.steamid == mod.steamid]
+                new_mod = [m for m in steam_mods if m.steam_id == mod.steamid]
                 if len(new_mod) == 1:
                     mod = new_mod[0]
                 else:
-                    mod = Mod(steamid=mod.steamid)
-            if not isinstance(mod.steamid, int):
+                    mod = Mod(steam_id=mod.steamid)
+            if not isinstance(mod.steam_id, int):
                 continue
             success = False
             try:
                 self.remove_mod(mod)
-                success = self.install_mod(steam_cache_path, mod.steamid)
+                success = self.install_mod(steam_cache_path, mod.steam_id)
             except FileNotFoundError:
                 print(
                     f"Unable to download and install {mod.title()}\n\tDoes this mod still exist?"
@@ -137,8 +137,8 @@ class Manager:
 
     def _enable_mod(self, mod: Union[str, Mod]):
         if isinstance(mod, str):
-            mod = Mod(packageid=mod)
-        if not mod.packageid:
+            mod = Mod(package_id=mod)
+        if not mod.package_id:
             raise Exception("No package id for specifed mod")
         self.modsconfig.enable_mod(mod)
 
@@ -151,8 +151,8 @@ class Manager:
 
     def _disable_mod(self, mod: Union[str, Mod]):
         if isinstance(mod, str):
-            mod = Mod(packageid=mod)
-        if not mod.packageid:
+            mod = Mod(package_id=mod)
+        if not mod.package_id:
             raise Exception("No package id for specifed mod")
         self.modsconfig.disable_mod(mod)
 

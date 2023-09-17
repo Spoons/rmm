@@ -5,7 +5,7 @@ from typing import List, cast
 from xml.etree import ElementTree as ET
 
 from . import util
-from .mod import EXPANSION_PACKAGES, Mod
+from rmm.Mod.mod import EXPANSION_PACKAGES, Mod
 
 
 class ModsConfig:
@@ -68,11 +68,11 @@ class ModsConfig:
             raise
 
     def enable_mod(self, m: Mod):
-        self.mods[m.packageid] = None
+        self.mods[m.package_id] = None
 
     def disable_mod(self, m: Mod):
-        if m.packageid in self.mods:
-            del self.mods[m.packageid]
+        if m.package_id in self.mods:
+            del self.mods[m.package_id]
 
     def autosort(self, mods, config):
         import json
@@ -99,7 +99,7 @@ class ModsConfig:
             for j in range(k + 1, len(combined_load_order)):
                 DG.add_edge(combined_load_order[j], combined_load_order[k])
 
-        populated_mods = {m.packageid: m for m in mods if m in self.mods}
+        populated_mods = {m.package_id: m for m in mods if m in self.mods}
 
         rules_path = Path(
             config.mod_path / "rupal.rimpymodmanagerdatabase/db/communityRules.json"
@@ -110,7 +110,7 @@ class ModsConfig:
             # rules_cache_path = Path(SteamDownloader.find_path()[1]/ "1847679158")
             # rmm.steam.SteamDownloader.download([1847679158])
 
-            manager.Manager(config).sync_mods([Mod(steamid=1847679158)])
+            manager.Manager(config).sync_mods([Mod(steam_id=1847679158)])
 
         with (
             config.mod_path / "rupal.rimpymodmanagerdatabase/db/communityRules.json"
@@ -119,7 +119,7 @@ class ModsConfig:
 
         for pid, m in populated_mods.items():
             try:
-                for j in community_db["rules"][m.packageid]["loadAfter"]:
+                for j in community_db["rules"][m.package_id]["loadAfter"]:
                     if j:
                         try:
                             m.before.add(j)
@@ -128,7 +128,7 @@ class ModsConfig:
             except KeyError:
                 pass
             try:
-                for j in community_db["rules"][m.packageid]["loadBefore"]:
+                for j in community_db["rules"][m.package_id]["loadBefore"]:
                     if j:
                         try:
                             m.after.add(j)
@@ -194,10 +194,10 @@ class ModsConfig:
 
     def verify_state(self, mods: List[Mod]):
         if isinstance(mods, list):
-            populated_mods = {m.packageid: m for m in mods if m.packageid in self.mods}
+            populated_mods = {m.package_id: m for m in mods if m.package_id in self.mods}
         elif isinstance(mods, dict):
             populated_mods = {
-                m.packageid: m for m in mods.values() if m.packageid in self.mods
+                m.package_id: m for m in mods.values() if m.package_id in self.mods
             }
         else:
             raise Exception("bad data type")

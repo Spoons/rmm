@@ -13,7 +13,7 @@ from . import util
 from .config import Config
 from .exception import InvalidSelectionException
 from .manager import Manager
-from .mod import Mod
+from rmm.Mod.mod import Mod
 from .modlist import ModListFile, ModListV2Format
 from .path import PathFinder
 from .steam import WorkshopResult, WorkshopWebScraper
@@ -188,7 +188,7 @@ def tabulate_mod_or_wr(
 
     if isinstance(mods[0], Mod):
         headers = ["package", "name", "author", "enabled"]
-        mod_list = [[n.packageid, n.name, n.author[:20], n.enabled] for n in mods]
+        mod_list = [[n.package_id, n.name, n.author[:20], n.enabled] for n in mods]
     elif isinstance(mods[0], WorkshopResult) or light:
         headers = ["name", "author"]
         mod_list = [[n.name, n.author[:20]] for n in mods]
@@ -416,7 +416,7 @@ def _import(args: list[str], manager: Manager):
         print("No mods imported")
         exit(1)
 
-    mod_install_queue = [n for n in mod_install_queue if n.steamid]
+    mod_install_queue = [n for n in mod_install_queue if n.steam_id]
 
     for mod in mod_install_queue:
         print(mod.title())
