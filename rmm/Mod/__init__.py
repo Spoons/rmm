@@ -1,1 +1,0 @@
-from .modaboutxml import ModAboutXML

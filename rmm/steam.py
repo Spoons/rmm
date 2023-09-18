@@ -13,7 +13,7 @@ from typing import List, Tuple
 from bs4 import BeautifulSoup
 
 from . import util
-from rmm.Mod.modaboutxml import ModAboutXML, ModFolder
+from rmm.mod.about import ModAboutXML, ModFolder
 
 STEAMCMD_WINDOWS_URL = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip"
 

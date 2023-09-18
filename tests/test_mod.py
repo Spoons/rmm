@@ -1,4 +1,4 @@
-from rmm.Mod import ModAboutXML
+from rmm.mod import ModAboutXML
 import pytest
 
 

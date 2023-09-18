@@ -5,7 +5,7 @@ from typing import List, Union
 
 from . import util
 from .config import Config
-from rmm.Mod.modaboutxml import EXPANSION_PACKAGES, ModAboutXML, ModFolder
+from rmm.mod.about import EXPANSION_PACKAGES, ModAboutXML, ModFolder
 from .modsconfig import ModsConfig
 from .steam import SteamDownloader, WorkshopResult
 
@@ -146,7 +146,7 @@ class Manager:
         for n in mods:
             print("Enabling " + n.title())
             self._enable_mod(n)
-        print("Updating ModsConfig.xml")
+        print("Updating ModsConfig.parser")
         self.modsconfig.write()
 
     def _disable_mod(self, mod: Union[str, ModAboutXML]):
@@ -160,7 +160,7 @@ class Manager:
         for n in mods:
             print("Disabling " + n.title())
             self._disable_mod(n)
-        print("Updating ModsConfig.xml")
+        print("Updating ModsConfig.parser")
         self.modsconfig.write()
 
     def verify_mods(self):

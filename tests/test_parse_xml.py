@@ -1,7 +1,7 @@
 import pytest
 
-from rmm.Mod.parse_xml import handle_error, parse_xml_field, parse_xml, read_mod
-from rmm.error import Ok, Err, Result
+from rmm.mod.parser import handle_error, parse_xml_field, parse_xml
+from rmm.mod import read_mod
 import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 
@@ -13,12 +13,12 @@ def root():
 
 @pytest.fixture
 def rimhud_about_xml_file():
-    mod_xml = """<?xml version="1.0" encoding="utf-8"?>
+    mod_xml = """<?parser version="1.0" encoding="utf-8"?>
     <ModMetaData>
       <packageId>Jaxe.RimHUD</packageId>
       <name>RimHUD</name>
       <author>Jaxe</author>
-      <description>Mod Version: {ReleaseVersion}\n\nRimHUD is a UI mod that displays detailed information about a selected character or creature. The HUD display is integrated into the inspect pane which can be resized to fit the additional information. Alternatively, the HUD can display a separate floating window and can be docked to any position on the screen.\n\nVisual warnings will appear if a pawn has any life-threatening conditions, has wounds that need tending to, or is close to a mental breakdown.</description>
+      <description>modxml Version: {ReleaseVersion}\n\nRimHUD is a UI mod that displays detailed information about a selected character or creature. The HUD display is integrated into the inspect pane which can be resized to fit the additional information. Alternatively, the HUD can display a separate floating window and can be docked to any position on the screen.\n\nVisual warnings will appear if a pawn has any life-threatening conditions, has wounds that need tending to, or is close to a mental breakdown.</description>
       <supportedVersions>
         <li>1.1</li>
         <li>1.2</li>

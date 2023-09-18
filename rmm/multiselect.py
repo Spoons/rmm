@@ -121,7 +121,7 @@ def multiselect_order_menu(stdscr, data):
             start_y += 1
 
         # Rendering some text
-        title = "RMM: Mod Sorting Display"
+        title = "RMM: modxml Sorting Display"
         stdscr.addstr(0, 0, title, curses.color_pair(1))
 
         # Render status bar

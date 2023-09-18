@@ -9,7 +9,7 @@ from collections.abc import MutableSequence
 from pathlib import Path
 from typing import Any, Generator, Iterator, cast
 
-from rmm.Mod.modaboutxml import ModAboutXML
+from rmm.mod.about import ModAboutXML
 
 
 class ModListSerializer(ABC):

@@ -13,13 +13,13 @@ from . import util
 from .config import Config
 from .exception import InvalidSelectionException
 from .manager import Manager
-from rmm.Mod.modaboutxml import ModAboutXML
+from rmm.mod.about import ModAboutXML
 from .modlist import ModListFile, ModListV2Format
 from .path import PathFinder
 from .steam import WorkshopResult, WorkshopWebScraper
 
 USAGE = """
-RimWorld Mod Manager
+RimWorld modxml Manager
 
 Usage:
 rmm [options] config
@@ -342,7 +342,7 @@ def config(args: list[str], manager: Manager):
     if not manager.config.mod_path:
         raise Exception("Game path not defined")
     if not manager.config.modsconfig_path:
-        raise Exception("ModsConfig.xml not found")
+        raise Exception("ModsConfig.parser not found")
 
     import curses
 
@@ -362,7 +362,7 @@ def sort(args: list[str], manager: Manager):
     if not manager.config.mod_path:
         raise Exception("Game path not defined")
     if not manager.config.modsconfig_path:
-        raise Exception("ModsConfig.xml not found")
+        raise Exception("ModsConfig.parser not found")
 
     manager.modsconfig.autosort(manager.installed_mods(), manager.config)
     manager.modsconfig.write()
@@ -404,7 +404,7 @@ def export(args: list[str], manager: Manager):
 
     joined_args = " ".join(args[1:])
     ModListFile.write(Path(joined_args), mods, ModListV2Format())
-    print(f"Mod list written to {joined_args}")
+    print(f"modxml list written to {joined_args}")
 
 
 @mods_config_dec
@@ -538,7 +538,7 @@ def run():
 
     if config.config_path:
         config.config_path = cast(Path, config.config_path)
-        config.modsconfig_path = Path(config.config_path / "Config/ModsConfig.xml")
+        config.modsconfig_path = Path(config.config_path / "Config/ModsConfig.parser")
         if config.modsconfig_path:
             config.modsconfig_path = cast(Path, config.modsconfig_path)
 

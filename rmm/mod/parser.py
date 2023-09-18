@@ -1,14 +1,8 @@
-from rmm.Mod.modaboutxml import ModAboutXML, ModDep
-from pathlib import Path
+from rmm.mod.about import ModAboutXML
+from rmm.mod.dependency import ModDep
 import typing as t
 import xml.etree.ElementTree as Et
 from rmm.error import Ok, Err, Result
-
-
-def find_about_xml(path: Path) -> t.Optional[Path]:
-    # Use glob to get the case-insensitive About.xml path
-    matches = list(path.glob("About/[Aa][Bb][Oo][Uu][Tt].[Xx][Mm][Ll]"))
-    return matches[0] if matches else None
 
 
 def get_xml_field(root: Et.ElementTree, field: str) -> t.Optional[str]:
@@ -60,9 +54,9 @@ def parse_mod_dependencies(root: Et.ElementTree):
     return Ok(deps)
 
 
-def parse_xml(path: Path):
+def parse_xml(contents: str):
     try:
-        tree = Et.parse(path)
+        tree = Et.fromstring(contents)
     except Et.ParseError as e:
         return Err(e)
 
@@ -75,26 +69,15 @@ def parse_xml(path: Path):
     supported_versions = parse_xml_list(tree, "supportedVersions").unwrap()
     dependencies = parse_mod_dependencies(tree).unwrap()
 
-    return ModAboutXML(
-        package_id,
-        before,
-        after,
-        incompatible,
-        author,
-        name,
-        supported_versions,
-        dependencies,
+    return Ok(
+        ModAboutXML(
+            package_id,
+            before,
+            after,
+            incompatible,
+            author,
+            name,
+            supported_versions,
+            dependencies,
+        )
     )
-
-
-def read_mod(path: Path):
-    about_xml_path = find_about_xml(path)
-    if not about_xml_path:
-        return Err(f"No About.xml found in {path}")
-    test = parse_xml(about_xml_path)
-    return test
-
-
-if __name__ == "__main__":
-    read_mod(Path("/games/rimworld-dev/game/Mods/jaxe.rimhud/"))
-    print("success")

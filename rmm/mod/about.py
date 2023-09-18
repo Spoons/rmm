@@ -1,14 +1,8 @@
 #!/usr/bin/env python3
 from dataclasses import dataclass
-from typing import List, Optional, Union, cast
+from typing import List, Optional
 
-
-@dataclass
-class ModDep:
-    package_id: str
-    name: str
-    workshop_url: str
-    download_url: str
+from rmm.mod.dependency import ModDep
 
 
 def __eq__(self, other) -> bool:

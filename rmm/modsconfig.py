@@ -5,7 +5,7 @@ from typing import List, cast
 from xml.etree import ElementTree as ET
 
 from . import util
-from rmm.Mod.modaboutxml import EXPANSION_PACKAGES, ModAboutXML
+from rmm.mod.about import EXPANSION_PACKAGES, ModAboutXML
 
 
 class ModsConfig:
@@ -25,7 +25,7 @@ class ModsConfig:
                 List[str],
                 util.list_grab("activeMods", self.root),
             )
-            # self.mods = [Mod(packageid=pid) for pid in enabled]
+            # self.mods = [modxml(packageid=pid) for pid in enabled]
             self.mods = {pid: None for pid in enabled}
         except TypeError:
             print("Unable to parse activeMods in ModsConfig")
