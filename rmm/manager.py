@@ -47,6 +47,7 @@ class Manager:
         installed_mods = ModFolder.read(self.config.mod_path)
         removal_queue = [n for n in installed_mods if n == mod]
 
+        print("\n")
         for m in removal_queue:
             print(f"Uninstalling {mod.title()}")
             mod_absolute_path = self.config.mod_path / m.dirname

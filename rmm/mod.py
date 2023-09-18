@@ -109,7 +109,8 @@ class Mod:
         try:
             about_xml_path = find_about_xml(path)
             if not about_xml_path:
-                print(f"No About.xml found in {path}")
+                if not "Place mods here.txt" in str(path):
+                    print(f"No About.xml found in {path}")
                 return None
 
             tree_root = parse_tree(about_xml_path)
