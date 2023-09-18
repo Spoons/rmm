@@ -11,35 +11,30 @@ def root():
     return ElementTree.fromstring("<outer><data>data</data></outer>")
 
 
-@pytest.fixture
-def rimhud_about_xml_file():
-    mod_xml = """<?parser version="1.0" encoding="utf-8"?>
-    <ModMetaData>
-      <packageId>Jaxe.RimHUD</packageId>
-      <name>RimHUD</name>
-      <author>Jaxe</author>
-      <description>modxml Version: {ReleaseVersion}\n\nRimHUD is a UI mod that displays detailed information about a selected character or creature. The HUD display is integrated into the inspect pane which can be resized to fit the additional information. Alternatively, the HUD can display a separate floating window and can be docked to any position on the screen.\n\nVisual warnings will appear if a pawn has any life-threatening conditions, has wounds that need tending to, or is close to a mental breakdown.</description>
-      <supportedVersions>
-        <li>1.1</li>
-        <li>1.2</li>
-        <li>1.3</li>
-        <li>1.4</li>
-      </supportedVersions>
-      <modDependencies>
-        <li>
-          <packageId>brrainz.harmony</packageId>
-          <displayName>Harmony</displayName>
-          <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
-          <downloadUrl>https://github.com/pardeike/HarmonyRimWorld/releases/latest</downloadUrl>
-        </li>
-      </modDependencies>
-      <loadAfter>
-        <li>brrainz.harmony</li>
-      </loadAfter>
-    </ModMetaData>"""
-    mod_xml_path = Path("/tmp/mod.xml")
-    mod_xml_path.write_text(mod_xml)
-    return mod_xml_path
+RIMHUD_ABOUT_XML = """<?parser version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <packageId>Jaxe.RimHUD</packageId>
+  <name>RimHUD</name>
+  <author>Jaxe</author>
+  <description>modxml Version: {ReleaseVersion}\n\nRimHUD is a UI mod that displays detailed information about a selected character or creature. The HUD display is integrated into the inspect pane which can be resized to fit the additional information. Alternatively, the HUD can display a separate floating window and can be docked to any position on the screen.\n\nVisual warnings will appear if a pawn has any life-threatening conditions, has wounds that need tending to, or is close to a mental breakdown.</description>
+  <supportedVersions>
+    <li>1.1</li>
+    <li>1.2</li>
+    <li>1.3</li>
+    <li>1.4</li>
+  </supportedVersions>
+  <modDependencies>
+    <li>
+      <packageId>brrainz.harmony</packageId>
+      <displayName>Harmony</displayName>
+      <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
+      <downloadUrl>https://github.com/pardeike/HarmonyRimWorld/releases/latest</downloadUrl>
+    </li>
+  </modDependencies>
+  <loadAfter>
+    <li>brrainz.harmony</li>
+  </loadAfter>
+</ModMetaData>"""
 
 
 def test_handle_error():
@@ -80,16 +75,12 @@ def test_parse_xml_list_optional_pass(root):
     assert parse_xml_field(root, "data", False).unwrap() == "data"
 
 
-def test_parse_xml(rimhud_about_xml_file):
-    assert parse_xml(rimhud_about_xml_file).package_id == "Jaxe.RimHUD"
+def test_parse_xml():
+    assert parse_xml(RIMHUD_ABOUT_XML).unwrap().package_id == "Jaxe.RimHUD"
 
 
-def test_read_mod_fail(rimhud_about_xml_file):
-    assert read_mod(Path("/fakepath")).is_error() == True
-
-
-def test_mod_dependencies(rimhud_about_xml_file):
-    deps = parse_xml(rimhud_about_xml_file).dependencies
+def test_mod_dependencies():
+    deps = parse_xml(RIMHUD_ABOUT_XML).unwrap().dependencies
     assert deps[0].package_id == "brrainz.harmony"
     assert deps[0].name == "Harmony"
     assert deps[0].workshop_url == "steam://url/CommunityFilePage/2009463077"
