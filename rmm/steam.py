@@ -75,7 +75,7 @@ class SteamDownloader:
                 / "Library/Application Support/Steam/SteamApps/workshop/content/294100/"
             )
         else:
-            mod_path = home_path / ".steam/SteamApps/workshop/content/294100/"
+            mod_path = home_path / util.extract_download_path()
         return (home_path, mod_path)
 
     @staticmethod
