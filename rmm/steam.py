@@ -104,10 +104,6 @@ class SteamDownloader:
             )
             util.run_sh(query)
 
-        # TODO: ugly work around for weird steam problem
-        if util.platform() == "linux" and not mod_path.exists():
-            mod_path = SteamDownloader.replace_path(mod_path)
-
         return (ModFolder.read(mod_path), mod_path)
 
     @staticmethod
