@@ -75,7 +75,7 @@ class SteamDownloader:
                 / "Library/Application Support/Steam/SteamApps/workshop/content/294100/"
             )
         else:
-            mod_path = home_path / ".steam/SteamApps/workshop/content/294100/"
+            mod_path = home_path / util.extract_download_path()
         return (home_path, mod_path)
 
     @staticmethod
@@ -103,10 +103,6 @@ class SteamDownloader:
                 workshop_item_arg + workshop_item_arg.join(str(m) for m in mods),
             )
             util.run_sh(query)
-
-        # TODO: ugly work around for weird steam problem
-        if util.platform() == "linux" and not mod_path.exists():
-            mod_path = SteamDownloader.replace_path(mod_path)
 
         return (ModFolder.read(mod_path), mod_path)
 
