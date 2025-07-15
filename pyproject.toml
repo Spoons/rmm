@@ -19,7 +19,13 @@ classifiers = [
   "Topic :: Games/Entertainment",
   "Topic :: System :: Archiving :: Packaging"
 ]
-dependencies = ["tabulate", "bs4"]
+dependencies = [
+    "tabulate",
+    "bs4",
+    "requests>=2.32.4",
+    "tomli>=2.2.1",
+    "tomli-w>=1.0.0",
+]
 
 [project.scripts]
 rmm = "rmm.cli:run"
@@ -33,3 +39,12 @@ packages = ["src/rmm"]
 
 [tool.hatch.version]
 path = "src/rmm/__about__.py"
+
+[tool.uv.sources]
+rmm-awesome = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "ipython>=8.12.3",
+    "rmm-awesome",
+]
