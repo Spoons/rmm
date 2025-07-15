@@ -74,3 +74,6 @@ profile_default/
 pip-log.txt
 pip-delete-this-directory.txt
 local_settings.py
+
+# Zed editor
+.zed/
