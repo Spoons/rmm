@@ -1,5 +1,7 @@
 import argparse
 from pathlib import Path
+
+from rmm.mod_new.mod_searcher import ModSearcher
 from .manager import Manager
 from rmm import Config
 from rmm import ModInstaller
@@ -82,6 +84,10 @@ def run():
     if args.command == "list":
         mod_lister = ModLister(manager)
         mod_lister.display_mods()
+
+    if args.command == "search":
+        mod_searcher = ModSearcher()
+        mod_searcher.display_search(args.term)
 
 
 if __name__ == "__main__":
