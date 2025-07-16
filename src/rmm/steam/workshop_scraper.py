@@ -3,7 +3,7 @@ from typing import List
 import requests
 from bs4 import BeautifulSoup
 from rmm.steam import WorkshopResult
-from rmm.steam.workshop_result import WorkshopDetail
+import pdb
 
 
 class Scraper:
@@ -29,15 +29,9 @@ class Scraper:
                 continue
         raise Exception("Failed to retrieve data after multiple retries.")
 
-    def detail(self, steamid: int) -> WorkshopResult:
+    def get_description(self, steamid: int) -> str:
         html_content = self._request(self.detail_query, str(steamid))
         results = BeautifulSoup(html_content, "html.parser")
-        details = results.find_all("div", class_="detailsStatRight")
-
-        size = details[0].get_text() if len(details) > 0 else "Unknown"
-        created = details[1].get_text() if len(details) > 1 else "Unknown"
-        updated = details[2].get_text() if len(details) > 2 else "Unknown"
-
         description_div = results.find("div", class_="workshopItemDescription")
         description = (
             description_div.get_text()
@@ -45,22 +39,16 @@ class Scraper:
             else "No description available"
         )
 
-        return WorkshopDetail(
-            steamid=steamid,
-            name="Mod Name",  # Placeholder, replace with actual extraction logic if available
-            author="Mod Author",  # Placeholder, replace with actual extraction logic if available
-            description=description,
-            updated=updated,
-            size=size,
-            created=created,
-        )
+        return description
 
     def search(self, term: str) -> List[WorkshopResult]:
         html_content = self._request(self.index_query, term)
-        page_result = BeautifulSoup(html_content, "html.parser").find_all(
-            "div",
+        page_result = BeautifulSoup(html_content, "html.parser").css.select(
+            "div.workshopItem",
         )
         results = []
+
+        # pdb.set_trace()
 
         for item in page_result:
             try:
@@ -72,16 +60,13 @@ class Scraper:
                 ).get_text()[3:]  # type: ignore
                 steamid_match = re.search(r"\d+", item.find("a", class_="ugc")["href"])  # type: ignore
                 steamid = int(steamid_match.group()) if steamid_match else 0
+                description = self.get_description(steamid)
 
                 results.append(
-                    WorkshopResult(
-                        steamid=steamid,
-                        name=item_title,
-                        author=author_name,
-                        description="",  # Placeholder, replace with actual extraction logic if available
-                    )
+                    WorkshopResult(steamid, item_title, author_name, description)
                 )
-            except (AttributeError, ValueError):
+            except (AttributeError, ValueError) as e:
+                print(f"Error: {e}")
                 continue
 
         return results
