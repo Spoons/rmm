@@ -32,10 +32,20 @@ class Manager:
         ]
         return mods
 
-    def display_mods(self):
-        """
-        Display the list of installed mods.
-        """
+    def find_one_mod(self, id: int) -> Mod:
         mods = self.installed_mods()
-        for mod in mods:
-            print(mod)
+
+        mod_set = set(filter(lambda m: m.steam_id == id, mods))
+        if len(mod_set) == 0:
+            raise NoModsFound()
+        if len(mod_set) > 1:
+            raise TooManyMatchingMods()
+        return mod_set.pop()
+
+
+class NoModsFound(Exception):
+    pass
+
+
+class TooManyMatchingMods(Exception):
+    pass
