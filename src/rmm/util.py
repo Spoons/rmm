@@ -1,10 +1,9 @@
 import re
-import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Generator, List, Optional, Union, cast
+from typing import Generator, Optional, Union, cast
 from xml.dom import minidom
 
 
@@ -33,43 +32,6 @@ def execute(cmd) -> Generator[str, None, None]:
 def run_sh(cmd: str) -> str:
     # Will raise a CalledProcessError if non-zero return code
     return subprocess.check_output(cmd, text=True, shell=True).strip()
-
-
-def copy(source: Path, destination: Path, recursive: bool = False):
-    if recursive:
-        shutil.copytree(source, destination)
-    else:
-        shutil.copy2(source, destination, follow_symlinks=True)
-
-
-def move(source: Path, destination: Path):
-    shutil.move(source, destination)
-
-
-def remove(dest: Path):
-    shutil.rmtree(dest)
-
-
-def list_set_intersection(a: list, b: list) -> list:
-    return list(set(a) & set(b))
-
-
-def list_loop_intersection(a: list, b: list) -> list:
-    return [value for value in a if value in b]
-
-
-def list_loop_exclusion(a: list, b: list) -> list:
-    return [value for value in a if value not in b]
-
-
-def list_grab(element: str, root: ET.Element) -> Optional[List[str]]:
-    try:
-        return cast(
-            Optional[List[str]],
-            [n.text for n in cast(ET.Element, root.find(element)).findall("li")],
-        )
-    except AttributeError:
-        return None
 
 
 def element_grab(element: str, root: ET.Element) -> Optional[str]:

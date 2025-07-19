@@ -3,7 +3,6 @@ from typing import List
 import requests
 from bs4 import BeautifulSoup
 from rmm.steam import WorkshopResult
-import pdb
 
 
 class Scraper:
@@ -47,8 +46,6 @@ class Scraper:
             "div.workshopItem",
         )
         results = []
-
-        # pdb.set_trace()
 
         for item in page_result:
             try:
