@@ -9,6 +9,7 @@ DEFAULT_CONFIG_FILE: str = "~/.config/rmm.toml"
 class ConfigPrimitives(TypedDict):
     mod_path: str
     config_path: str
+    steamcmd: str
 
 
 class Config:
@@ -16,6 +17,7 @@ class Config:
     def from_dict(cls, primitives: ConfigPrimitives):
         config = cls(
             mod_path=Path(primitives["mod_path"]),
+            steamcmd=Path(primitives["steamcmd"]),
             config_path=Path(primitives["config_path"]),
         )
         return config
@@ -26,14 +28,21 @@ class Config:
             config_dict = tomli.load(file)
         return Config.from_dict(config_dict)  # type: ignore
 
-    def __init__(self, mod_path: Path, config_path: Path = Path(DEFAULT_CONFIG_FILE)):
-        self.mod_path: Path = mod_path
+    def __init__(
+        self,
+        mod_path: Path,
+        steamcmd: Path,
+        config_path: Path = Path(DEFAULT_CONFIG_FILE),
+    ):
+        self.mod_path = mod_path.expanduser() / "game" / "Mods"
+        self.steamcmd = steamcmd.expanduser()
         self.config_path = config_path.expanduser()
 
     def to_dict(self) -> ConfigPrimitives:
         return {
             "mod_path": str(self.mod_path),
             "config_path": str(self.config_path),
+            "steamcmd": str(self.steamcmd),
         }
 
     def save_config(self):
@@ -59,9 +68,9 @@ def main():
         # Example Config object
         config = Config(
             mod_path=Path("/path/to/rimworld/mods"),
-            config_path=Path("/path/to/user/config"),
+            config_path=Path(args.file_path),
         )
-        config.save_config(args.file_path)
+        config.save_config()
         print(f"Config saved to {args.file_path}")
     elif args.load:
         config = Config.load_config(args.file_path)
