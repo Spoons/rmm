@@ -1,49 +1,60 @@
+import subprocess
 import tempfile
 from pathlib import Path
-from rmm import util
 from rmm import Mod, ModFolder
+from rmm.logger import setup_logging
+
+
+logger = setup_logging(__name__)
+
+
+class SteamCMDNotFound(Exception):
+    pass
 
 
 class SteamDownloader:
     """Interacts and manages the `steamcmd` client"""
 
-    def find_path(self) -> tuple[Path, Path]:
-        home_path = None
-        mod_path = None
+    MOD_PATH = Path("Steam/steamapps/workshop/content/294100")
 
-        try:
-            for d in Path(tempfile.gettempdir()).iterdir():
-                if d.name.startswith("rmm-") and d.is_dir() and (d / ".rmm").is_file():
-                    home_path = d
-                    break
-        except FileNotFoundError:
-            pass
+    def __init__(self, steamcmd_path: Path) -> None:
+        if not steamcmd_path.is_file():
+            raise SteamCMDNotFound(steamcmd_path)
+        self.steamcmd_path = steamcmd_path
 
-        if not home_path:
-            home_path = Path(tempfile.mkdtemp(prefix="rmm-"))
-            with open(home_path / ".rmm", "w"):
-                pass
+    def get_temp_path(self) -> Path:
+        home_path = Path(tempfile.mkdtemp(prefix="rmm-"))
+        (home_path / ".rmm").touch(exist_ok=True)
 
-        try:
-            mod_path = home_path / util.extract_download_path()
-        except Exception as e:
-            print(f"could not find download path...: {e}")
-            raise e
+        return home_path
 
-        return home_path, mod_path
-
-    def download(self, mods: list[int]) -> tuple[list[Mod], Path]:
-        home_path, mod_path = self.find_path()
+    def download(self, *mod_ids: int) -> tuple[list[Mod], Path]:
+        home_path = self.get_temp_path()
 
         if not home_path:
-            raise Exception("Error: Could not get temporary directory")
+            raise Exception("Could not get temporary directory")
 
-        workshop_item_arg = " +workshop_download_item 294100 "
+        command = [
+            self.steamcmd_path,
+            "+login",
+            "anonymous",
+            *list(map(lambda id: f"+workshop_download_item 294100 {id}", mod_ids)),
+            "+quit",
+        ]
 
-        query = 'env HOME="{}" steamcmd +login anonymous {} +quit >&2'.format(
-            str(home_path),
-            workshop_item_arg + workshop_item_arg.join(str(m) for m in mods),
+        logger.debug(command)
+
+        result = subprocess.run(
+            command, check=True, capture_output=True, text=True, env={"HOME": home_path}
         )
-        util.run_sh(query)
 
-        return ModFolder().read(mod_path), mod_path
+        if result.returncode == 0:
+            print(f"Downloaded {len(mod_ids)} mods successfully.")
+        else:
+            raise ModDownloadError()
+
+        return ModFolder().read(home_path / self.MOD_PATH), home_path / self.MOD_PATH
+
+
+class ModDownloadError(Exception):
+    pass
