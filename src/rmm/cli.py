@@ -1,11 +1,14 @@
 import argparse
 from pathlib import Path
 
+from rmm.logger import setup_logging
 from rmm.mod_new.mod_searcher import ModSearcher
+from rmm.steam.downloader import SteamDownloader
 from .manager import Manager
 from rmm import Config
 from rmm import ModInstaller
 from rmm import ModLister
+from rmm import ModUpdater
 
 
 def create_parser():
@@ -13,12 +16,14 @@ def create_parser():
     subparsers = parser.add_subparsers(dest="command", help="Sub-command help")
 
     # Common arguments
-    parser.add_argument("-p", "--path", type=str, help="RimWorld path.")
     parser.add_argument("-c", "--config", type=str, help="User config path.")
-    parser.add_argument(
-        "--create",
-        action="store_true",
-        help="Create a configuration file at ~/.config/rrm",
+
+    config_parser = subparsers.add_parser(
+        "configuration", help="Manage user configuration"
+    )
+    config_parser.add_argument("-p", "--path", type=Path, help="RimWorld path.")
+    config_parser.add_argument(
+        "-d", "--steamcmd", type=Path, help="SteamCMD executable path"
     )
 
     # Remove command
@@ -43,20 +48,25 @@ def create_parser():
     install_parser.add_argument("name", type=str, help="Name of mod.")
 
     # Update command
-    subparsers.add_parser("update", help="Update all mods from Steam.")
+    update_parser = subparsers.add_parser("update", help="Update mods.")
+    update_parser.add_argument("--id", type=int, default=None)
 
     return parser
 
 
 def run():
+    logger = setup_logging()
     parser = create_parser()
     args = parser.parse_args()
 
-    if args.create:
+    if args.command == "configuration":
         if not args.path:
             print("Must pass -p RimWorld/Game/Path")
             return 1
-        Config(args.path).save_config()
+        if not args.steamcmd:
+            print("Must pass -d path/to/steamcmd")
+            return 1
+        Config(args.path, args.steamcmd).save_config()
         return 0
 
     # Load configuration
@@ -73,21 +83,31 @@ def run():
         return 10
 
     manager = Manager(config)
+    mod_lister = ModLister(manager)
+    downloader = SteamDownloader(config.steamcmd)
 
+    logger.debug(config.to_dict())
     # Handle the install command
     if args.command == "install":
-        mod_installer = ModInstaller(
-            steamcmd_path=Path("path/to/steamcmd"), mod_install_path=config.mod_path
-        )
+        mod_installer = ModInstaller(config.mod_path, downloader)
         mod_installer.install_mod(args.name)
 
     if args.command == "list":
-        mod_lister = ModLister(manager)
-        mod_lister.display_mods()
+        mods = mod_lister.list_mods()
+        for mod in mods:
+            print(mod)
 
     if args.command == "search":
         mod_searcher = ModSearcher()
         mod_searcher.display_search(args.term)
+
+    if args.command == "update":
+        mod_updater = ModUpdater(config.mod_path, downloader)
+        if not args.id:
+            return mod_updater.update_all_mods(mod_lister.list_mods())
+
+        mod = manager.find_one_mod(args.id)
+        mod_updater.update_mod(mod)
 
 
 if __name__ == "__main__":
