@@ -97,3 +97,14 @@ def sanitize_path(path: Union[str, Path]):
         path.replace('"', "")
 
     return Path(path).expanduser()
+
+def extract_download_path() -> str:
+    '''
+    Get the path on where steamcmd downloads items from the query function
+    This should prevent that bug where steamcmd downloads to a path different
+    that the one that's hardcoded
+    '''
+    output: str = run_sh('env HOME="/tmp/rmm-dltest" steamcmd +login anonymous +workshop_download_item 294100 3128152016 +quit')
+    regex = re.compile(r'".*rmm-dltest\/([\w\/-]+294100).*"')
+    match = regex.search(output).group(1)
+    return match
