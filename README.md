@@ -92,7 +92,7 @@ different Linux variant:
 
 ```sh
 sudo su -c 'apt update && apt upgrade && apt install software-properties-common && add-apt-repository multiverse && dpkg --add-architecture i386 && apt update && apt install lib32gcc1 steamcmd'
-echo 'export PATH="$PATH:/usr/games' >> ~/.bashrc
+echo 'export PATH="$PATH:/usr/games"' >> ~/.bashrc
 exec $SHELL
 ```
 
@@ -100,7 +100,7 @@ exec $SHELL
 
 ```sh
 sudo su -c 'apt update && apt upgrade && apt install software-properties-common && add-apt-repository non-free && dpkg --add-architecture i386 && apt update && apt install steamcmd'
-echo 'export PATH="$PATH:/usr/games' >> ~/.bashrc
+echo 'export PATH="$PATH:/usr/games"' >> ~/.bashrc
 exec $SHELL
 ```
 
@@ -113,7 +113,7 @@ python -m pip install --user rmm-spoons
 
 If you encounter a unknown command error, add the following to your .bashrc:
 ```sh
-echo 'export PATH="$PATH:$HOME/.local/bin" >> ~/.bashrc
+echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.bashrc
 exec $SHELL
 ```
 
