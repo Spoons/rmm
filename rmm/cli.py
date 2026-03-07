@@ -379,7 +379,7 @@ def update(args: list[str], manager: Manager):
     print(installed_mods_names)
     print(
         "\nThe action will overwrite any changes to the mod directory\n"
-        "Add a .rmm_ignore to your mod directory to exclude it frome this list.\n"
+        "Add a .rmm_ignore to your mod directory to exclude it from this list.\n"
         "Would you like to continue? [y/n]"
     )
 
